@@ -4,6 +4,8 @@ MAX_LENGTH = 2500
 
 #where you want to save any models you may train
 MODEL_DIR = '/data/mimicdata/'
+#MODEL_DIR = '/Users/SWiegreffe/Desktop/saved_models'
+
 test_dir = 'I://progress_notes/data/notes/testing_parsing_xmi'
 xmi_dir = '/data/mimicdata/mimic3/patient_notes/train_out'
 concept_write_dir = '/data/mimicdata/mimic3/'
@@ -11,6 +13,6 @@ concept_write_dir = '/data/mimicdata/mimic3/'
                                    # -test_concepts.csv
                                    # -dev_concepts.csv
 
-DATA_DIR = '/path/to/repo/mimicdata/'
-MIMIC_3_DIR = '/path/to/repo/mimicdata/mimic3'
+DATA_DIR = '/Users/SWiegreffe/Desktop'
+MIMIC_3_DIR = '~/Desktop/mimicdata/mimic3'
 MIMIC_2_DIR = '/path/to/repo/mimicdata/mimic2'

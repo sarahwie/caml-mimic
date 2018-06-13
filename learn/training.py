@@ -17,6 +17,8 @@ import time
 from tqdm import tqdm
 from collections import defaultdict
 
+import sys
+sys.path.append('..')
 from constants import *
 import datasets
 import evaluation
@@ -185,6 +187,9 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept'], dicts['concept2ind']
     unseen_code_inds = set(ind2c.keys())
     desc_embed = model.lmbda > 0
+    print(ind2c)
+    print(type(ind2c))
+    print(len(ind2c))
 
     model.train()
     if GRAM:
@@ -199,7 +204,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
-        unseen_code_inds = unseen_code_inds.difference(code_set)
+         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu:
             data = data.cuda()
             target = target.cuda()
@@ -211,7 +216,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
             desc_data = None
 
         #call forward
-        output, loss, _ = model(data, target, desc_data=desc_data)
+        output, loss, _ = model(data, concepts, codes, target, desc_data=desc_data)
 
         loss.backward() #backprop/compute gradients
         optimizer.step()    #update weights

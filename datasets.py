@@ -97,6 +97,8 @@ class Batch:
             padded_docs.append(doc)
         self.docs = padded_docs
 
+    #TODO: write pad_concepts method
+
     def to_ret(self):
         return np.array(self.docs), np.array(self.concepts), np.array(self.labels), np.array(self.hadm_ids), self.code_set,\
                np.array(self.descs)
@@ -157,6 +159,8 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
         Yields:
             np arrays with data for training loop.
     """
+
+    #TODO: HERE, yield a concepts matrix as well with the same type of lookups**
     ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
     with open(filename, 'r') as infile:
         r = csv.reader(infile)
@@ -236,7 +240,8 @@ def load_full_codes(train_path, version='mimic3'):
             code lookup, description lookup
     """
     #get description lookup
-    desc_dict = load_code_descriptions(version=version)
+    #desc_dict = load_code_descriptions(version=version)
+    desc_dict = None
     #build code lookups from appropriate datasets
     if version == 'mimic2':
         ind2c = defaultdict(str)
