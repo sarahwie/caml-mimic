@@ -31,6 +31,7 @@ def main(args):
     epochs_trained = train_epochs(args, model, optimizer, params, dicts)
     print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS: %f" % (args.model, epochs_trained, time.time() - start))
 
+
 def init(args):
     """
         Load data, build model, create optimizer, create vars to hold metrics, etc.
@@ -56,6 +57,7 @@ def init(args):
     
     return args, model, optimizer, params, dicts
 
+
 def train_epochs(args, model, optimizer, params, dicts):
     """
         Main loop. does train and test
@@ -76,7 +78,7 @@ def train_epochs(args, model, optimizer, params, dicts):
             model_dir = os.path.dirname(os.path.abspath(args.test_model))
         metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path, args.concepts_file,
                                                   args.version, test_only, dicts, model_dir, 
-                                                  args.samples, args.gpu, args.quiet)
+                                                  args.samples, args.gpu, args.quiet, args.model)
         for name in metrics_all[0].keys():
             metrics_hist[name].append(metrics_all[0][name])
         for name in metrics_all[1].keys():
@@ -101,6 +103,7 @@ def train_epochs(args, model, optimizer, params, dicts):
                 model = tools.pick_model(args, dicts)
     return epoch+1
 
+
 def early_stop(metrics_hist, criterion, patience):
     if not np.all(np.isnan(metrics_hist[criterion])):
         if criterion == 'loss-dev': 
@@ -110,14 +113,15 @@ def early_stop(metrics_hist, criterion, patience):
     else:
         #keep training if criterion results have all been nan so far
         return False
-        
+
+
 def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, concepts_file, version, testing, dicts, model_dir,
-              samples, gpu, quiet):
+              samples, gpu, quiet, model_name):
     """
         Wrapper to do a training epoch and test on dev
     """
     if not testing:
-        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet)
+        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -161,11 +165,16 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
 
 
 #TODO: This is the method to update**
-def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet):
+def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name):
     """
         Training loop.
         output: losses for each example for this iteration
     """
+    if model_name == 'conv_attn_plus_GRAM':
+        GRAM = True
+    else:
+        GRAM = False
+
     print("EPOCH %d" % epoch)
     num_labels = len(dicts['ind2c'])
 
@@ -173,15 +182,23 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     #how often to print some info to stdout
     print_every = 25
 
-    ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept', dicts['concept2ind']]
+    ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept'], dicts['concept2ind']
     unseen_code_inds = set(ind2c.keys())
     desc_embed = model.lmbda > 0
 
     model.train()
-    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
+    if GRAM:
+        gen = datasets.data_generator_GRAM(data_path, concepts_file, dicts, batch_size, num_labels, desc_embed=desc_embed, version=version) #TODO: CONV.
+    else:
+        gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, desc_embed=desc_embed, version=version) #TODO: CONV.
+
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, concepts, target, _, code_set, descs = tup
-        data, concepts, target = Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.FloatTensor(target))
+        if GRAM:
+            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts))), Variable(torch.FloatTensor(target))
+        else:
+            data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
+
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu:
             data = data.cuda()
@@ -194,7 +211,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
             desc_data = None
 
         #call forward
-        output, loss, _ = model(data, concepts, target, desc_data=desc_data)
+        output, loss, _ = model(data, target, desc_data=desc_data)
 
         loss.backward() #backprop/compute gradients
         optimizer.step()    #update weights
@@ -207,6 +224,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
                 epoch, batch_idx, data.size()[0], data.size()[1], np.mean(losses[-10:])))
     return losses, unseen_code_inds
 
+
 def unseen_code_vecs(model, code_inds, dicts, gpu):
     """
         Use description module for codes not seen in training set.
@@ -218,6 +236,7 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
     #replace relevant final_layer weights with desc embeddings 
     model.final.weight.data[code_inds, :] = desc_embeddings.data
     model.final.bias.data[code_inds] = 0
+
 
 #TODO: UPDATE THIS METHOD**
 def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing):
@@ -292,6 +311,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
     metrics['loss_%s' % fold] = np.mean(losses)
     return metrics
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train a neural network on some clinical documents")
     parser.add_argument("data_path", type=str,
@@ -313,7 +333,6 @@ if __name__ == "__main__":
                         help="number of layers for RNN models (default: 1)")
     parser.add_argument("--embed-size", type=int, required=False, dest="embed_size", default=100,
                         help="size of embedding dimension. (default: 100)")
-                        help="number of layers for RNN models (default: 1)")
     parser.add_argument("--hidden-sim-size", type=int, required=False, dest="hidden_sim_size", default=20, #TODO: INIT THIS TO ED'S OPTIMAL HYPER**
                         help="size of hidden dimension in GRAM Feedforward sim. computation network. (default: 20)")
     parser.add_argument("--filter-size", type=str, required=False, dest="filter_size", default=4,

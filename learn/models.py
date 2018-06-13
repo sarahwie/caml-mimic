@@ -209,21 +209,38 @@ class ConvAttnPoolPlusGram(BaseModel):
             self.label_fc1 = nn.Linear(num_filter_maps, num_filter_maps)
             xavier_uniform(self.label_fc1.weight)
 
-    def forward(self, x, target, desc_data=None, get_attention=True):
+    def forward(self, data, target, desc_data=None, get_attention=True):
+
+        x, concepts = data #unpack input
+
         # get embeddings and apply dropout
         x = self.embed(x)
         print(type(x))
-        x = self.embed_drop(x)
         x = x.transpose(1, 2)
+        print(x.size())
 
         #TODO: here, compute GRAM embeddings and sub in for input**
-        # out = self.fc1(x)
-        # out = self.relu(out)
-        # out = self.fc2(out)
+        c = self.concept_embed(concepts)
+        #TODO: NOT PERFORMING DROPOUT ON CONCEPT EMBEDS**
+
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
         #TODO: CONCAT IN CHILD, ANCESTOR ORDER**
 
-        #TODO: CONSIDER OVERLAPPING CONCEPTS- USE ATTN. TO SELECT THE BEST, OR ELSE LEARN TO COMBINE (ALSO W/ ORIG. W.V.)**
+        #perform attn.:
 
+
+        #TODO: RECONSTRUCT 'x' here:
+
+            #TODO: IS ABOVE GOING TO WORK FOR BATCHING?** set b_s to one to start off*
+
+        #TODO: CONSIDER OVERLAPPING CONCEPTS- USE ATTN. TO SELECT THE BEST, OR ELSE LEARN TO COMBINE (ALSO W/ ORIG. W.V.)**
+        #TODO: PERFORM DROPOUT ONLY AFTER WHOLE MATRIX INPT CONSTRUCTED**
+        x = self.embed_drop(x)
+
+        #THIS PART IS IDENTICAL TO JAMES' MODEL--
+        #-------------------------------------------------------------------------------------------------------------
         # apply convolution and nonlinearity (tanh)
         x = F.tanh(self.conv(x).transpose(1, 2))
         # apply attention

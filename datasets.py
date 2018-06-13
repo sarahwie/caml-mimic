@@ -24,7 +24,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, row, ind2c, c2ind, w2ind, dv_dict, num_labels):
+    def add_instance(self, row, ind2c, c2ind, w2ind, dv_dict, num_labels, concepts=False):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -65,7 +65,11 @@ class Batch:
 
         #build instance
         self.docs.append(text)
-        self.concepts = [] #TODO: UPDATE
+        if not concepts:
+            self.concepts = [] #TODO: UPDATE
+        else:
+            #TODO
+            pass
         self.labels.append(labels_idx)
         self.hadm_ids.append(hadm_id)
         self.code_set = self.code_set.union(cur_code_set)
@@ -86,6 +90,7 @@ class Batch:
     def to_ret(self):
         return np.array(self.docs), np.array(self.concepts), np.array(self.labels), np.array(self.hadm_ids), self.code_set,\
                np.array(self.descs)
+    #TODO: EMPTY CONCEPTS LST PASSED IF NOT A THING FOR THAT PARTICULAR MODEL
 
 def pad_desc_vecs(desc_vecs):
     #pad all description vectors in a batch to have the same length
@@ -97,7 +102,7 @@ def pad_desc_vecs(desc_vecs):
         pad_vecs.append(vec)
     return pad_vecs
 
-def data_generator(filename, concepts_file, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
+def data_generator_GRAM(filename, concepts_file, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
     """
         Inputs:
             filename: holds data sorted by sequence length, for best batching
@@ -109,7 +114,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, desc_
         Yields:
             np arrays with data for training loop.
     """
-    #TODO: HERE, YIELD A concepts matrix as well as it's lookup
+    #TODO: HERE, YIELD A concepts matrix as well as its lookup
     ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
     with open(filename, 'r') as infile:
         r = csv.reader(infile)
@@ -123,7 +128,37 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, desc_
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels)
+            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, concepts=True)
+        cur_inst.pad_docs()
+        yield cur_inst.to_ret()
+
+#TODO: THE OLD VERSION
+def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
+    """
+        Inputs:
+            filename: holds data sorted by sequence length, for best batching
+            dicts: holds all needed lookups
+            batch_size: the batch size for train iterations
+            num_labels: size of label output space
+            desc_embed: true if using DR-CAML (lambda > 0)
+            version: which (MIMIC) dataset
+        Yields:
+            np arrays with data for training loop.
+    """
+    ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
+    with open(filename, 'r') as infile:
+        r = csv.reader(infile)
+        #header
+        next(r)
+        cur_inst = Batch(desc_embed)
+        for row in r:
+            #find the next `batch_size` instances
+            if len(cur_inst.docs) == batch_size:
+                cur_inst.pad_docs()
+                yield cur_inst.to_ret()
+                #clear
+                cur_inst = Batch(desc_embed)
+            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, concepts=False)
         cur_inst.pad_docs()
         yield cur_inst.to_ret()
 
