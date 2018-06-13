@@ -94,6 +94,8 @@ class ConvAttnPool(BaseModel):
     def __init__(self, Y, embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, embed_size=100, dropout=0.5):
         super(ConvAttnPool, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
+        #TODO SARAH: here, init GRAM inputs**
+
         #initialize conv layer as in 2.1
         self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=floor(kernel_size/2))
         xavier_uniform(self.conv.weight)
@@ -143,6 +145,72 @@ class ConvAttnPool(BaseModel):
             diffs = None
             
         #final sigmoid to get predictions
+        yhat = F.sigmoid(y)
+        loss = self._get_loss(yhat, target, diffs)
+        return yhat, loss, alpha
+
+class ConvAttnPoolPlusGram(BaseModel):
+    def __init__(self, Y, embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, embed_size=100, dropout=0.5):
+        super(ConvAttnPoolPlusGram, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
+
+        #TODO: Here, compute attentional similarity between GRAM embedding and word vector as a measure of 'confidence' in extracted concept?
+
+        #TODO: CONTINUE HERE DOING NECESSARY INITS FOR GRAM**
+
+        # initialize conv layer as in 2.1
+        self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=floor(kernel_size / 2))
+        xavier_uniform(self.conv.weight)
+
+        # context vectors for computing attention as in 2.2
+        self.U = nn.Linear(num_filter_maps, Y)
+        xavier_uniform(self.U.weight)
+
+        # final layer: create a matrix to use for the L binary classifiers as in 2.3
+        self.final = nn.Linear(num_filter_maps, Y)
+        xavier_uniform(self.final.weight)
+
+        # conv for label descriptions as in 2.5
+        # description module has its own embedding and convolution layers
+        if lmbda > 0:
+            W = self.embed.weight.data
+            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1])
+            self.desc_embedding.weight.data = W.clone()
+
+            self.label_conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size,
+                                        padding=floor(kernel_size / 2))
+            xavier_uniform(self.label_conv.weight)
+
+            self.label_fc1 = nn.Linear(num_filter_maps, num_filter_maps)
+            xavier_uniform(self.label_fc1.weight)
+
+    def forward(self, x, target, desc_data=None, get_attention=True):
+        # get embeddings and apply dropout
+        x = self.embed(x)
+        print(type(x))
+        x = self.embed_drop(x)
+        x = x.transpose(1, 2)
+
+        #TODO: here, compute GRAM embeddings and sub in for input**
+
+
+        # apply convolution and nonlinearity (tanh)
+        x = F.tanh(self.conv(x).transpose(1, 2))
+        # apply attention
+        alpha = F.softmax(self.U.weight.matmul(x.transpose(1, 2)), dim=2)
+        # document representations are weighted sums using the attention. Can compute all at once as a matmul
+        m = alpha.matmul(x)
+        # final layer classification
+        y = self.final.weight.mul(m).sum(dim=2).add(self.final.bias)
+
+        if desc_data is not None:
+            # run descriptions through description module
+            b_batch = self.embed_descriptions(desc_data, self.gpu)
+            # get l2 similarity loss
+            diffs = self._compare_label_embeddings(target, b_batch, desc_data)
+        else:
+            diffs = None
+
+        # final sigmoid to get predictions
         yhat = F.sigmoid(y)
         loss = self._get_loss(yhat, target, diffs)
         return yhat, loss, alpha

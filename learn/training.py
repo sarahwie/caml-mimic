@@ -175,6 +175,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
     desc_embed = model.lmbda > 0
 
     model.train()
+    #TODO SARAH: here, pass in diff generator**
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, target, _, code_set, descs = tup
@@ -190,10 +191,11 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
         else:
             desc_data = None
 
+        #call forward
         output, loss, _ = model(data, target, desc_data=desc_data)
 
-        loss.backward()
-        optimizer.step()
+        loss.backward() #backprop/compute gradients
+        optimizer.step()    #update weights
 
         losses.append(loss.data[0])
 
