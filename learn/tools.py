@@ -31,6 +31,10 @@ def pick_model(args, dicts):
         filter_size = int(args.filter_size)
         model = models.ConvAttnPool(Y, args.embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts,
                                     embed_size=args.embed_size, dropout=args.dropout)
+    elif args.model == "conv_attn_plus_GRAM":
+        filter_size = int(args.filter_size)
+        model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.concepts_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts,
+                                    embed_size=args.embed_size, hidden_sim_size=args.hidden_sim_size, dropout=args.dropout)
     if args.test_model:
         sd = torch.load(args.test_model)
         model.load_state_dict(sd)

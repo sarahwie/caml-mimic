@@ -12,6 +12,7 @@ import numpy as np
 import operator
 import random
 import sys
+sys.path.append('..')
 import time
 from tqdm import tqdm
 from collections import defaultdict
@@ -41,6 +42,7 @@ def init(args):
     desc_embed = args.lmbda > 0
     print("loading lookups...")
     dicts = datasets.load_lookups(args, desc_embed=desc_embed)
+    #TODO: CREATE A CONCEPT INDEX HERE AS WELL**
 
     model = tools.pick_model(args, dicts)
     print(model)
@@ -72,7 +74,7 @@ def train_epochs(args, model, optimizer, params, dicts):
             os.mkdir(model_dir)
         elif args.test_model:
             model_dir = os.path.dirname(os.path.abspath(args.test_model))
-        metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path,
+        metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path, args.concepts_file,
                                                   args.version, test_only, dicts, model_dir, 
                                                   args.samples, args.gpu, args.quiet)
         for name in metrics_all[0].keys():
@@ -109,13 +111,13 @@ def early_stop(metrics_hist, criterion, patience):
         #keep training if criterion results have all been nan so far
         return False
         
-def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, version, testing, dicts, model_dir, 
+def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, concepts_file, version, testing, dicts, model_dir,
               samples, gpu, quiet):
     """
         Wrapper to do a training epoch and test on dev
     """
     if not testing:
-        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet)
+        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -158,7 +160,8 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
     return metrics_all
 
 
-def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet):
+#TODO: This is the method to update**
+def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet):
     """
         Training loop.
         output: losses for each example for this iteration
@@ -170,16 +173,15 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
     #how often to print some info to stdout
     print_every = 25
 
-    ind2w, w2ind, ind2c, c2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind']
+    ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept', dicts['concept2ind']]
     unseen_code_inds = set(ind2c.keys())
     desc_embed = model.lmbda > 0
 
     model.train()
-    #TODO SARAH: here, pass in diff generator**
-    gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
+    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, target, _, code_set, descs = tup
-        data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
+        data, concepts, target, _, code_set, descs = tup
+        data, concepts, target = Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.FloatTensor(target))
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu:
             data = data.cuda()
@@ -192,7 +194,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
             desc_data = None
 
         #call forward
-        output, loss, _ = model(data, target, desc_data=desc_data)
+        output, loss, _ = model(data, concepts, target, desc_data=desc_data)
 
         loss.backward() #backprop/compute gradients
         optimizer.step()    #update weights
@@ -217,6 +219,7 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
     model.final.weight.data[code_inds, :] = desc_embeddings.data
     model.final.bias.data[code_inds] = 0
 
+#TODO: UPDATE THIS METHOD**
 def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing):
     """
         Testing loop.
@@ -293,9 +296,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train a neural network on some clinical documents")
     parser.add_argument("data_path", type=str,
                         help="path to a file containing sorted train data. dev/test splits assumed to have same name format with 'train' replaced by 'dev' and 'test'")
+    parser.add_argument("concepts_file", type=str, help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
     parser.add_argument("vocab", type=str, help="path to a file holding vocab word list for discretizing words")
     parser.add_argument("Y", type=str, help="size of label space")
-    parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved"], help="model")
+    parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved", 'conv_attn_plus_GRAM'], help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train")
     parser.add_argument("--embed-file", type=str, required=False, dest="embed_file",
                         help="path to a file holding pre-trained embeddings")
@@ -309,6 +313,9 @@ if __name__ == "__main__":
                         help="number of layers for RNN models (default: 1)")
     parser.add_argument("--embed-size", type=int, required=False, dest="embed_size", default=100,
                         help="size of embedding dimension. (default: 100)")
+                        help="number of layers for RNN models (default: 1)")
+    parser.add_argument("--hidden-sim-size", type=int, required=False, dest="hidden_sim_size", default=20, #TODO: INIT THIS TO ED'S OPTIMAL HYPER**
+                        help="size of hidden dimension in GRAM Feedforward sim. computation network. (default: 20)")
     parser.add_argument("--filter-size", type=str, required=False, dest="filter_size", default=4,
                         help="size of convolution filter to use. (default: 3) For multi_conv_attn, give comma separated integers, e.g. 3,4,5")
     parser.add_argument("--num-filter-maps", type=int, required=False, dest="num_filter_maps", default=50,

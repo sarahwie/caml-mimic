@@ -150,12 +150,38 @@ class ConvAttnPool(BaseModel):
         return yhat, loss, alpha
 
 class ConvAttnPoolPlusGram(BaseModel):
-    def __init__(self, Y, embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, embed_size=100, dropout=0.5):
+    def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, hidden_sim_size=20, embed_size=100, dropout=0.5):
         super(ConvAttnPoolPlusGram, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
-        #TODO: Here, compute attentional similarity between GRAM embedding and word vector as a measure of 'confidence' in extracted concept?
+        #make embedding layer
+        if code_embed_file:
+            print("loading pretrained CODE embeddings...")
+            #TODO: UPDATE HERE TO LOAD IN PRETRAINED CODE_EMBEDDINGS FILE
+            #W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
+            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1])
+            # self.embed.weight.data = W.clone()
+            raise Exception("*TODO not completed*")
 
-        #TODO: CONTINUE HERE DOING NECESSARY INITS FOR GRAM**
+        else:
+            #TODO: make sure this is what want**
+            print("Catch: NOT using pretrained code embeddings!")
+            concepts_size = len(dicts['ind2concept'])
+            self.concept_embed = nn.Embedding(concepts_size, embed_size) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
+            #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
+
+        #TODO: Here, compute attentional similarity between GRAM embedding and word vector as a measure of 'confidence' in extracted concept?
+        #TODO: HYPERPARAM TUNING: HOW MANY LAYERS/DIMS IN THIS F.F. NET FOR CALC. SIM. SCORE??**
+
+        #initialize the feedforward network for computing GRAM embedding sim. score, as well as the attentional distribution over the embeds*
+        self.fc1 = nn.Linear(2*embed_size, hidden_sim_size) #= Ed's W_a notation
+        self.relu = nn.tanh() #TODO: TRY DIFF NONLINS. HERE- ED USED TANH**
+        self.fc2 = nn.Linear(hidden_sim_size, 1) #= Ed's u_a notation
+        #TODO: as per James, init these with xavier_uniform (as per Glorot & Bengio 2010)
+        xavier_uniform(self.fc1.weight)
+        xavier_uniform(self.relu.weight)
+        xavier_uniform(self.fc2.weight)
+
+        #rest of network the same
 
         # initialize conv layer as in 2.1
         self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=floor(kernel_size / 2))
@@ -191,7 +217,12 @@ class ConvAttnPoolPlusGram(BaseModel):
         x = x.transpose(1, 2)
 
         #TODO: here, compute GRAM embeddings and sub in for input**
+        # out = self.fc1(x)
+        # out = self.relu(out)
+        # out = self.fc2(out)
+        #TODO: CONCAT IN CHILD, ANCESTOR ORDER**
 
+        #TODO: CONSIDER OVERLAPPING CONCEPTS- USE ATTN. TO SELECT THE BEST, OR ELSE LEARN TO COMBINE (ALSO W/ ORIG. W.V.)**
 
         # apply convolution and nonlinearity (tanh)
         x = F.tanh(self.conv(x).transpose(1, 2))

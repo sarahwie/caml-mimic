@@ -6,6 +6,7 @@ import csv
 import math
 import numpy as np
 import sys
+import os
 
 from constants import *
 
@@ -27,6 +28,10 @@ class Batch:
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
+
+        #TODO: UPDATE THIS METHOD TO ALSO INCLUDE CONCEPTS**
+        #TODO: ALSO PAD THE CONCEPT MATRIX
+
         labels = set()
         hadm_id = int(row[1])
         text = row[2]
@@ -60,6 +65,7 @@ class Batch:
 
         #build instance
         self.docs.append(text)
+        self.concepts = [] #TODO: UPDATE
         self.labels.append(labels_idx)
         self.hadm_ids.append(hadm_id)
         self.code_set = self.code_set.union(cur_code_set)
@@ -78,7 +84,7 @@ class Batch:
         self.docs = padded_docs
 
     def to_ret(self):
-        return np.array(self.docs), np.array(self.labels), np.array(self.hadm_ids), self.code_set,\
+        return np.array(self.docs), np.array(self.concepts), np.array(self.labels), np.array(self.hadm_ids), self.code_set,\
                np.array(self.descs)
 
 def pad_desc_vecs(desc_vecs):
@@ -91,7 +97,7 @@ def pad_desc_vecs(desc_vecs):
         pad_vecs.append(vec)
     return pad_vecs
 
-def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
+def data_generator(filename, concepts_file, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
     """
         Inputs:
             filename: holds data sorted by sequence length, for best batching
@@ -103,6 +109,7 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
         Yields:
             np arrays with data for training loop.
     """
+    #TODO: HERE, YIELD A concepts matrix as well as it's lookup
     ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
     with open(filename, 'r') as infile:
         r = csv.reader(infile)
@@ -136,6 +143,7 @@ def load_vocab_dict(args, vocab_file):
     w2ind = {w:i for i,w in ind2w.items()}
     return ind2w, w2ind
 
+#TODO: load concepts codes as well
 def load_lookups(args, desc_embed=False):
     """
         Inputs:
@@ -160,13 +168,16 @@ def load_lookups(args, desc_embed=False):
         desc_dict = load_code_descriptions()
     c2ind = {c:i for i,c in ind2c.items()}
 
+    ind2concept = load_concepts()
+    concept2ind = {c:i for i,c in ind2concept.items()}
+
     #get description one-hot vector lookup
     if desc_embed:
         dv_dict = load_description_vectors(args.Y, version=args.version)
     else:
         dv_dict = None
 
-    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict}
+    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict, 'ind2concept': ind2concept, 'concept2ind':concept2ind}
     return dicts
 
 def load_full_codes(train_path, version='mimic3'):
@@ -203,6 +214,19 @@ def load_full_codes(train_path, version='mimic3'):
         codes = set([c for c in codes if c != ''])
         ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes))})
     return ind2c, desc_dict
+
+#TODO: UPDATE THIS METHOD BASED ON PROPOSED STRUCTURE OF CONCEPTS_FILE**
+def load_concepts():
+
+    codes = set()
+    for split in ['train', 'dev', 'test']:
+        with open(os.path.join(concept_write_dir,'%s_concepts.csv' % split)) as f:
+            lr = csv.reader(f)
+            next(lr)
+            for row in lr:
+                codes.add(row)
+    ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes))})
+    return ind2c
 
 def reformat(code, is_diag):
     """
