@@ -35,13 +35,13 @@ class Batch:
 
         if concepts:
             row, concept = inpt
+            #assert row[1] == concept[0] #assert same id #TODO
+            extr_concepts = concept.split(';') #concept[1].split('') #TODO: change format here*
         else:
             row = inpt
 
         labels = set()
         hadm_id = int(row[1])
-        #assert row[1] == concept[0] #assert same id #TODO
-        extr_concepts = concept.split(';') #concept[1].split('')
         text = row[2]
         length = int(row[4])
         cur_code_set = set()
@@ -219,8 +219,12 @@ def load_lookups(args, desc_embed=False):
         desc_dict = load_code_descriptions()
     c2ind = {c:i for i,c in ind2c.items()}
 
-    ind2concept = load_concepts()
-    concept2ind = {c:i for i,c in ind2concept.items()}
+    if args.model == 'conv_attn_plus_GRAM':
+        ind2concept = load_concepts()
+        concept2ind = {c:i for i,c in ind2concept.items()}
+    else:
+        ind2concept = None
+        concept2ind = None
 
     #get description one-hot vector lookup
     if desc_embed:

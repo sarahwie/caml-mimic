@@ -95,14 +95,14 @@ def parse_xmi(args):
             df.to_csv(os.path.join(concept_write_dir, '%s_concept_extraction_stats.csv' % split))
 
         if args.test:
-            df_meta.to_csv(os.path.join(test_dir,'EXTRACTED_CONCEPTS.csv'))
-            with open(os.path.join(test_dir, '%s_concepts.csv' % split), 'wb') as fp:
+            df_meta.to_csv(os.path.join(test_dir,'train_concepts.csv'))
+            with open(os.path.join(test_dir, '%s_meta_concepts.csv' % split), 'wb') as fp:
                 for item in codes:
                     fp.write("%s\n" % item)
         else:
-            #df_meta.to_csv(os.path.join(concept_write_dir, '%s_EXTRACTED_CONCEPTS.csv'))
+            df_meta.to_csv(os.path.join(concept_write_dir, '%s_concepts.csv' % split))
             #TODO
-            with open(os.path.join(concept_write_dir, '%s_concepts.csv' % split), 'wb') as fp:
+            with open(os.path.join(concept_write_dir, '%s_meta_concepts.csv' % split), 'wb') as fp:
                 for item in codes:
                     fp.write("%s\n" % item)
 

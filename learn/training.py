@@ -17,8 +17,6 @@ import time
 from tqdm import tqdm
 from collections import defaultdict
 
-import sys
-sys.path.append('..')
 from constants import *
 import datasets
 import evaluation
@@ -78,6 +76,7 @@ def train_epochs(args, model, optimizer, params, dicts):
             os.mkdir(model_dir)
         elif args.test_model:
             model_dir = os.path.dirname(os.path.abspath(args.test_model))
+
         metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path, args.concepts_file,
                                                   args.version, test_only, dicts, model_dir, 
                                                   args.samples, args.gpu, args.quiet, args.model)
@@ -152,11 +151,11 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
 
     #test on dev
     metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
-                   testing)
+                   testing, model_name)
     if testing or epoch == n_epochs - 1:
         print("\nevaluating on test")
         metrics_te = test(model, Y, epoch, data_path, "test", gpu, version, unseen_code_inds, dicts, samples, 
-                          model_dir, True)
+                          model_dir, True, model_name)
     else:
         metrics_te = defaultdict(float)
         fpr_te = defaultdict(lambda: [])
@@ -187,9 +186,6 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept'], dicts['concept2ind']
     unseen_code_inds = set(ind2c.keys())
     desc_embed = model.lmbda > 0
-    print(ind2c)
-    print(type(ind2c))
-    print(len(ind2c))
 
     model.train()
     if GRAM:
@@ -204,7 +200,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
-         unseen_code_inds = unseen_code_inds.difference(code_set)
+        unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu:
             data = data.cuda()
             target = target.cuda()
@@ -216,7 +212,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
             desc_data = None
 
         #call forward
-        output, loss, _ = model(data, concepts, codes, target, desc_data=desc_data)
+        output, loss, _ = model(data, target, desc_data=desc_data)
 
         loss.backward() #backprop/compute gradients
         optimizer.step()    #update weights
@@ -244,12 +240,12 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
 
 
 #TODO: UPDATE THIS METHOD**
-def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing):
+def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name):
     """
         Testing loop.
         Returns metrics
     """
-    filename = data_path.replace('train', fold)
+    filename = data_path.replace('train', fold) #TODO: UPDATE THIS FOR TESTING CASE**
     print('file for evaluation: %s' % filename)
     num_labels = len(dicts['ind2c'])
 
@@ -267,10 +263,20 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         unseen_code_vecs(model, code_inds, dicts, gpu)
 
     model.eval()
-    gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed)
+    if model_name == 'conv_attn_plus_GRAM':
+        gen = datasets.data_generator_GRAM(filename, concepts_file, dicts, 1, num_labels, desc_embed=desc_embed, version=version) 
+    else:
+        gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed)
+
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, target, hadm_ids, _, descs = tup
-        data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
+
+        data, concepts, target, hadm_ids, _, descs = tup
+
+        if model_name == 'conv_attn_plus_GRAM':
+            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts))), Variable(torch.FloatTensor(target))
+        else:
+            data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
+
         if gpu:
             data = data.cuda()
             target = target.cuda()
@@ -321,13 +327,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train a neural network on some clinical documents")
     parser.add_argument("data_path", type=str,
                         help="path to a file containing sorted train data. dev/test splits assumed to have same name format with 'train' replaced by 'dev' and 'test'")
-    parser.add_argument("concepts_file", type=str, help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
     parser.add_argument("vocab", type=str, help="path to a file holding vocab word list for discretizing words")
     parser.add_argument("Y", type=str, help="size of label space")
     parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved", 'conv_attn_plus_GRAM'], help="model")
-    parser.add_argument("n_epochs", type=int, help="number of epochs to train")
+    parser.add_argument("n_epochs", type=int, help="number of epochs to train"),
+    parser.add_argument("--concepts_file", type=str, required=False, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
     parser.add_argument("--embed-file", type=str, required=False, dest="embed_file",
                         help="path to a file holding pre-trained embeddings")
+    parser.add_argument("--concept-embed-file", type=str, required=False, dest="code_embed_file",
+                        help="path to a file holding pre-trained CODE embeddings")
     parser.add_argument("--cell-type", type=str, choices=["lstm", "gru"], help="what kind of RNN to use (default: GRU)", dest='cell_type',
                         default='gru')
     parser.add_argument("--rnn-dim", type=int, required=False, dest="rnn_dim", default=128,
