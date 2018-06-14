@@ -216,6 +216,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         # get embeddings and apply dropout
         x = self.embed(x)
         print(type(x))
+        print(x.size())
         x = x.transpose(1, 2)
         print(x.size())
 
@@ -223,6 +224,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         c = self.concept_embed(concepts)
         #TODO: NOT PERFORMING DROPOUT ON CONCEPT EMBEDS**
 
+        #TODO: DO FOR EACH CODE-PAIR*
         out = self.fc1(x)
         out = self.relu(out)
         out = self.fc2(out)
@@ -243,6 +245,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         #-------------------------------------------------------------------------------------------------------------
         # apply convolution and nonlinearity (tanh)
         x = F.tanh(self.conv(x).transpose(1, 2))
+        print(x.size())
         # apply attention
         alpha = F.softmax(self.U.weight.matmul(x.transpose(1, 2)), dim=2)
         # document representations are weighted sums using the attention. Can compute all at once as a matmul

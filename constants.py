@@ -4,7 +4,7 @@ MAX_LENGTH = 2500
 
 #where you want to save any models you may train
 MODEL_DIR = '/data/mimicdata/'
-test_dir = 'I://progress_notes/data/notes/'
+test_dir = 'I://progress_notes/data/notes/testing_parsing_xmi'
 xmi_dir = '/data/mimicdata/mimic3/patient_notes/train_out'
 concept_write_dir = '/data/mimicdata/mimic3/'
     #TODO: need the following files: -train_concepts.csv

@@ -16,6 +16,7 @@ class Batch:
     """
     def __init__(self, desc_embed):
         self.docs = []
+        self.concepts = []
         self.labels = []
         self.hadm_ids = []
         self.code_set = set()
@@ -24,7 +25,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, row, ind2c, c2ind, w2ind, dv_dict, num_labels, concepts=False):
+    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, concepts=False):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -32,8 +33,15 @@ class Batch:
         #TODO: UPDATE THIS METHOD TO ALSO INCLUDE CONCEPTS**
         #TODO: ALSO PAD THE CONCEPT MATRIX
 
+        if concepts:
+            row, concept = inpt
+        else:
+            row = inpt
+
         labels = set()
         hadm_id = int(row[1])
+        #assert row[1] == concept[0] #assert same id #TODO
+        extr_concepts = concept.split(';') #concept[1].split('')
         text = row[2]
         length = int(row[4])
         cur_code_set = set()
@@ -63,13 +71,15 @@ class Batch:
         if len(text) > self.max_length:
             text = text[:self.max_length]
 
+        if concepts:
+            #TODO: MAP HERE TO WORDS
+
+            con = [int(concept2ind[c] if c in concept2ind else len(concept2ind)+1 for c in BLANK)]
+
         #build instance
         self.docs.append(text)
-        if not concepts:
-            self.concepts = [] #TODO: UPDATE
-        else:
-            #TODO
-            pass
+        if concepts:
+            self.concepts.append(con)
         self.labels.append(labels_idx)
         self.hadm_ids.append(hadm_id)
         self.code_set = self.code_set.union(cur_code_set)
@@ -115,22 +125,24 @@ def data_generator_GRAM(filename, concepts_file, dicts, batch_size, num_labels, 
             np arrays with data for training loop.
     """
     #TODO: HERE, YIELD A concepts matrix as well as its lookup
-    ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
-    with open(filename, 'r') as infile:
-        r = csv.reader(infile)
-        #header
-        next(r)
-        cur_inst = Batch(desc_embed)
-        for row in r:
-            #find the next `batch_size` instances
-            if len(cur_inst.docs) == batch_size:
-                cur_inst.pad_docs()
-                yield cur_inst.to_ret()
-                #clear
-                cur_inst = Batch(desc_embed)
-            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, concepts=True)
-        cur_inst.pad_docs()
-        yield cur_inst.to_ret()
+    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept']
+    with open(filename, 'r') as infile, open(concepts_file, 'r') as concepts_file:
+            c = csv.reader(concept_file)
+            r = csv.reader(infile)
+            #header
+            next(r)
+            next(c)
+            cur_inst = Batch(desc_embed)
+            for concept, row in zip(c,r):
+                #find the next `batch_size` instances
+                if len(cur_inst.docs) == batch_size:
+                    cur_inst.pad_docs()
+                    yield cur_inst.to_ret()
+                    #clear
+                    cur_inst = Batch(desc_embed)
+                cur_inst.add_instance((row,concept), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, concepts=True)
+            cur_inst.pad_docs()
+            yield cur_inst.to_ret()
 
 #TODO: THE OLD VERSION
 def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
@@ -158,7 +170,7 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, concepts=False)
+            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, None, None, num_labels, concepts=False)
         cur_inst.pad_docs()
         yield cur_inst.to_ret()
 
