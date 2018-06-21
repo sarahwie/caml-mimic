@@ -213,45 +213,63 @@ class ConvAttnPoolPlusGram(BaseModel):
 
         x, concepts = data #unpack input
 
-        # get embeddings and apply dropout
+        # get embeddings
         x = self.embed(x)
-        print(type(x))
-        print(x.size())
         x = x.transpose(1, 2)
-        print(x.size())
 
-        #TODO: here, compute GRAM embeddings and sub in for input**
         c = self.concept_embed(concepts)
-        #TODO: NOT PERFORMING DROPOUT ON CONCEPT EMBEDS**
+        c = c.transpose(1, 2)
 
-        #TODO: EXPAND OUT CODESET (SOMEWHERE)
+        #RECONSTRUCT THE INPUT EMBEDDING MATRIX BASED ON USING THE CONCEPTS OR WORDS
+        #TODO: rewrite this to be performed in matrix form? (no obvious way, can look into l8r)
+        #TODO: here is where we can add a learnable weighting function for the two embeddings
+        for batch_el in range(c.shape[0]):                
+            for word in range(c.shape[2]):
+                if word == 0: #first element and first array: create new one
+                    if concepts[batch_el, word].data[0] != 0: 
+                        patient_embed = c[batch_el, :, word]
+                    else:
+                        patient_embed = x[batch_el, :, word]
+                    patient_embed = patient_embed.view(1,-1,1)
 
-        #TODO: DO FOR EACH CODE-PAIR*
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        #TODO: CONCAT IN CHILD, ANCESTOR ORDER**
+                else: #not first word
+                    if concepts[batch_el, word].data[0] != 0: 
+                        patient_embed = torch.cat((patient_embed, c[batch_el, :, word].view(1,-1,1)), 2)
+                    else:
+                        patient_embed = torch.cat((patient_embed, x[batch_el, :, word].view(1,-1,1)), 2)
 
-        #perform attn.:
+            #make large patient matrix
+            if batch_el == 0:
+                z = patient_embed
+            else:
+                z = torch.cat((z, patient_embed), 0)
 
+        print(z.size())
+#-------------------------------------------------------------------
+        # #TODO: EXPAND OUT CODESET (SOMEWHERE)
 
-        #TODO: RECONSTRUCT 'x' here:
+        # #TODO: DO FOR EACH CODE-PAIR*
+        # out = self.fc1(x)
+        # out = self.relu(out)
+        # out = self.fc2(out)
+        # #TODO: CONCAT IN CHILD, ANCESTOR ORDER**
 
-            #TODO: IS ABOVE GOING TO WORK FOR BATCHING?** set b_s to one to start off*
+        # #perform attn.:
+#-------------------------------------------------------------------
 
-        #TODO: CONSIDER OVERLAPPING CONCEPTS- USE ATTN. TO SELECT THE BEST, OR ELSE LEARN TO COMBINE (ALSO W/ ORIG. W.V.)**
-        #TODO: PERFORM DROPOUT ONLY AFTER WHOLE MATRIX INPT CONSTRUCTED**
-        x = self.embed_drop(x)
+        #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
+        #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
+        z = self.embed_drop(z)
 
         #THIS PART IS IDENTICAL TO JAMES' MODEL--
         #-------------------------------------------------------------------------------------------------------------
         # apply convolution and nonlinearity (tanh)
-        x = F.tanh(self.conv(x).transpose(1, 2))
-        print(x.size())
+        z = F.tanh(self.conv(z).transpose(1, 2))
+        print(z.size())
         # apply attention
-        alpha = F.softmax(self.U.weight.matmul(x.transpose(1, 2)), dim=2)
+        alpha = F.softmax(self.U.weight.matmul(z.transpose(1, 2)), dim=2)
         # document representations are weighted sums using the attention. Can compute all at once as a matmul
-        m = alpha.matmul(x)
+        m = alpha.matmul(z)
         # final layer classification
         y = self.final.weight.mul(m).sum(dim=2).add(self.final.bias)
 

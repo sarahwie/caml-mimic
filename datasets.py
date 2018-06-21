@@ -70,10 +70,10 @@ class Batch:
 
             joint_id = row[0] + '_' + row[1]
             #TODO: MULTI-LABEL FOR ONE-POSITION CASE**
-            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 for w in concept_dict[joint_id]]
+            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
             assert len(con) == len(concept_dict[joint_id])
             assert len(con) == len(text)
-            print(con)
+            #print(con)
 
             #append to arraylist we're keeping
             self.concepts.append(con)
@@ -149,7 +149,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
 
     if GRAM:
         #load concepts matrix
-        concept_dict = pickle.load(open(concepts_file), 'rb')
+        concept_dict = pickle.load(open(concepts_file, 'rb'))
     else:
         concept_dict = None
 
@@ -275,7 +275,8 @@ def load_concepts():
             content = f.readlines()
         codes.update([x.strip() for x in content]) #add in the new values to the set
     ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
-    print(len(ind2c))
+    #print(len(ind2c))
+    #print(ind2c)
     return ind2c
 
 def reformat(code, is_diag):

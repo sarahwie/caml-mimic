@@ -223,8 +223,14 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
 
         if not quiet and batch_idx % print_every == 0:
             #print the average loss of the last 10 batches
-            print("Train epoch: {} [batch #{}, batch_size {}, seq length {}]\tLoss: {:.6f}".format(
+
+            if GRAM: 
+                print("Train epoch: {} [batch #{}, batch_size {}, seq length {}]\tLoss: {:.6f}".format(
+                epoch, batch_idx, data[0].size()[0], data[0].size()[1], np.mean(losses[-10:])))
+            else: 
+                print("Train epoch: {} [batch #{}, batch_size {}, seq length {}]\tLoss: {:.6f}".format(
                 epoch, batch_idx, data.size()[0], data.size()[1], np.mean(losses[-10:])))
+                
     return losses, unseen_code_inds
 
 
