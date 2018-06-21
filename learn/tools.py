@@ -33,8 +33,17 @@ def pick_model(args, dicts):
                                     embed_size=args.embed_size, dropout=args.dropout)
     elif args.model == "conv_attn_plus_GRAM":
         filter_size = int(args.filter_size)
-        model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.concepts_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts,
+        assert args.annotation_type is not None
+        assert args.concepts_file is not None #must provide extracted concepts if using this model
+        model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.code_embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts,
                                     embed_size=args.embed_size, hidden_sim_size=args.hidden_sim_size, dropout=args.dropout)
+
+        #convert the codes if necessary
+        if args.annotation_type != "ICD9":
+            raise Exception("You must first process the data to include ICD9 codes!")
+
+        #TODO: ADD CONVERSION FOR ICD9 HERE
+
     if args.test_model:
         sd = torch.load(args.test_model)
         model.load_state_dict(sd)

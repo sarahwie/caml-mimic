@@ -26,6 +26,7 @@ import learn.models as models
 import learn.tools as tools
 
 def main(args):
+    print(args.annotation_type)
     start = time.time()
     args, model, optimizer, params, dicts = init(args)
     epochs_trained = train_epochs(args, model, optimizer, params, dicts)
@@ -39,11 +40,12 @@ def init(args):
     #need to handle really large text fields
     csv.field_size_limit(sys.maxsize)
 
+    #TODO[minor]- make arg check in tools file
+
     #load vocab and other lookups
     desc_embed = args.lmbda > 0
     print("loading lookups...")
-    dicts = datasets.load_lookups(args, desc_embed=desc_embed)
-    #TODO: CREATE A CONCEPT INDEX HERE AS WELL**
+    dicts = datasets.load_lookups(args, desc_embed=desc_embed) #also creating a concept index here
 
     model = tools.pick_model(args, dicts)
     print(model)
@@ -151,11 +153,11 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
 
     #test on dev
     metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
-                   testing, model_name)
+                   testing, model_name, concepts_file)
     if testing or epoch == n_epochs - 1:
         print("\nevaluating on test")
         metrics_te = test(model, Y, epoch, data_path, "test", gpu, version, unseen_code_inds, dicts, samples, 
-                          model_dir, True, model_name)
+                          model_dir, True, model_name, concepts_file)
     else:
         metrics_te = defaultdict(float)
         fpr_te = defaultdict(lambda: [])
@@ -165,7 +167,6 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
     return metrics_all
 
 
-#TODO: This is the method to update**
 def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name):
     """
         Training loop.
@@ -188,13 +189,14 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     desc_embed = model.lmbda > 0
 
     model.train()
-    if GRAM:
-        gen = datasets.data_generator_GRAM(data_path, concepts_file, dicts, batch_size, num_labels, desc_embed=desc_embed, version=version) #TODO: CONV.
-    else:
-        gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, desc_embed=desc_embed, version=version) #TODO: CONV.
+    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, concepts, target, _, code_set, descs = tup
+        # print(data)
+        print(data.shape)
+        print(concepts.shape)
+        print(target.shape)
         if GRAM:
             data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts))), Variable(torch.FloatTensor(target))
         else:
@@ -240,12 +242,22 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
 
 
 #TODO: UPDATE THIS METHOD**
-def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name):
+#TODO: SUB IN DEV FILE CONCEPTS-- THAT PASSED IN IS TRAIN
+def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name, concepts_file):
     """
         Testing loop.
         Returns metrics
     """
-    filename = data_path.replace('train', fold) #TODO: UPDATE THIS FOR TESTING CASE**
+    if model_name == 'conv_attn_plus_GRAM':
+        GRAM = True
+    else:
+        GRAM = False
+
+    filename = data_path.replace('train', fold) 
+    if GRAM:
+        concepts_file = concepts_file.replace('train', fold)
+    else:
+        concepts_file = None
     print('file for evaluation: %s' % filename)
     num_labels = len(dicts['ind2c'])
 
@@ -256,17 +268,13 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         window_size = model.conv.weight.data.size()[2]
 
     y, yhat, yhat_raw, hids, losses = [], [], [], [], []
-    ind2w, w2ind, ind2c, c2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind']
 
     desc_embed = model.lmbda > 0
     if desc_embed and len(code_inds) > 0:
         unseen_code_vecs(model, code_inds, dicts, gpu)
 
     model.eval()
-    if model_name == 'conv_attn_plus_GRAM':
-        gen = datasets.data_generator_GRAM(filename, concepts_file, dicts, 1, num_labels, desc_embed=desc_embed, version=version) 
-    else:
-        gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed)
+    gen = datasets.data_generator(filename, concepts_file, dicts, 1, num_labels, GRAM, desc_embed=desc_embed, version=version)
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
@@ -331,7 +339,9 @@ if __name__ == "__main__":
     parser.add_argument("Y", type=str, help="size of label space")
     parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved", 'conv_attn_plus_GRAM'], help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train"),
-    parser.add_argument("--concepts_file", type=str, required=False, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
+    parser.add_argument("--concepts_file", type=str, required=False, default=None, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
+    #TODO: ADD CAPABILITIES for ICD10
+    parser.add_argument("--annotations", type=str, choices=["ICD9", "ICD10", "SNOMED"], required=False, default=None, dest="annotation_type", help="what kind of code format the annotations output from the parser is in")
     parser.add_argument("--embed-file", type=str, required=False, dest="embed_file",
                         help="path to a file holding pre-trained embeddings")
     parser.add_argument("--concept-embed-file", type=str, required=False, dest="code_embed_file",

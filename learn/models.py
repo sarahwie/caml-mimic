@@ -174,11 +174,11 @@ class ConvAttnPoolPlusGram(BaseModel):
 
         #initialize the feedforward network for computing GRAM embedding sim. score, as well as the attentional distribution over the embeds*
         self.fc1 = nn.Linear(2*embed_size, hidden_sim_size) #= Ed's W_a notation
-        self.relu = nn.tanh() #TODO: TRY DIFF NONLINS. HERE- ED USED TANH**
+        self.relu = nn.Tanh() #TODO: TRY DIFF NONLINS. HERE- ED USED TANH**
         self.fc2 = nn.Linear(hidden_sim_size, 1) #= Ed's u_a notation
         #TODO: as per James, init these with xavier_uniform (as per Glorot & Bengio 2010)
         xavier_uniform(self.fc1.weight)
-        xavier_uniform(self.relu.weight)
+        #xavier_uniform(self.relu.weight) #TODO: not initializing weights for Tanh layer b/c there aren't any lol
         xavier_uniform(self.fc2.weight)
 
         #rest of network the same
@@ -223,6 +223,8 @@ class ConvAttnPoolPlusGram(BaseModel):
         #TODO: here, compute GRAM embeddings and sub in for input**
         c = self.concept_embed(concepts)
         #TODO: NOT PERFORMING DROPOUT ON CONCEPT EMBEDS**
+
+        #TODO: EXPAND OUT CODESET (SOMEWHERE)
 
         #TODO: DO FOR EACH CODE-PAIR*
         out = self.fc1(x)

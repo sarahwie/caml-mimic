@@ -17,7 +17,7 @@ def main(args):
 
 def parse_xmi(args):
 
-    for split in ['train']:
+    for split in ['train', 'test', 'dev']:
         print("Parsing %s files..." % split)
         a = datetime.datetime.now().replace(microsecond=0)
 
@@ -84,7 +84,7 @@ def parse_xmi(args):
             df_local = df_local.merge(lookups, how='inner', left_on='lookup_id', right_on='lookup_id')
             df_meta = df_meta.append(df_local)
 
-            fn = lambda x: text[x['begin_inx']:x['end_inx']]
+            fn = lambda x: x['text'][x['begin_inx']:x['end_inx']]
             df_meta['word_phrase'] = df_meta.apply(fn, axis=1)
 
             print(lookups)

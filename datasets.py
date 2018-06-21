@@ -7,6 +7,8 @@ import math
 import numpy as np
 import sys
 import os
+import re
+import pickle
 
 from constants import *
 
@@ -25,7 +27,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, concepts=False):
+    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, GRAM):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -33,12 +35,7 @@ class Batch:
         #TODO: UPDATE THIS METHOD TO ALSO INCLUDE CONCEPTS**
         #TODO: ALSO PAD THE CONCEPT MATRIX
 
-        if concepts:
-            row, concept = inpt
-            #assert row[1] == concept[0] #assert same id #TODO
-            extr_concepts = concept.split(';') #concept[1].split('') #TODO: change format here*
-        else:
-            row = inpt
+        row, concept_dict = inpt
 
         labels = set()
         hadm_id = int(row[1])
@@ -66,20 +63,27 @@ class Batch:
                 else:
                     desc_vecs.append([len(w2ind)+1])
         #OOV words are given a unique index at end of vocab lookup
-        text = [int(w2ind[w]) if w in w2ind else len(w2ind)+1 for w in text.split()]
+        words = text.strip().split()
+        text = [int(w2ind[w]) if w in w2ind else len(w2ind)+1 for w in words]
+
+        if GRAM: #get concepts array from file, convert to index
+
+            joint_id = row[0] + '_' + row[1]
+            #TODO: MULTI-LABEL FOR ONE-POSITION CASE**
+            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 for w in concept_dict[joint_id]]
+            assert len(con) == len(concept_dict[joint_id])
+            assert len(con) == len(text)
+            print(con)
+
+            #append to arraylist we're keeping
+            self.concepts.append(con)
+
         #truncate long documents
-        if len(text) > self.max_length:
+        if len(text) > self.max_length: #TODO: UNDO FOR SH CASE**
             text = text[:self.max_length]
-
-        if concepts:
-            #TODO: MAP HERE TO WORDS
-
-            con = [int(concept2ind[c] if c in concept2ind else len(concept2ind)+1 for c in BLANK)]
 
         #build instance
         self.docs.append(text)
-        if concepts:
-            self.concepts.append(con)
         self.labels.append(labels_idx)
         self.hadm_ids.append(hadm_id)
         self.code_set = self.code_set.union(cur_code_set)
@@ -88,20 +92,33 @@ class Batch:
         #reset length
         self.length = min(self.max_length, length)
 
-    def pad_docs(self):
-        #pad all docs to have self.length
-        padded_docs = []
-        for doc in self.docs:
-            if len(doc) < self.length:
-                doc.extend([0] * (self.length - len(doc)))
-            padded_docs.append(doc)
-        self.docs = padded_docs
+    def pad_docs(self, GRAM): #TODO: also pad concepts here**
+        #pad all docs (and concepts) to have self.length
 
-    #TODO: write pad_concepts method
+        if GRAM:
+            padded_docs = []
+            padded_concepts = []
+            for doc, con in zip(self.docs, self.concepts):
+                if len(doc) < self.length:
+                    doc.extend([0] * (self.length - len(doc))) #TODO: fix padding**
+                    con.extend([0] * (self.length - len(con))) #TODO: fix padding**
+                    assert len(doc) == len(con) 
+                padded_docs.append(doc)
+                padded_concepts.append(con)
+            self.docs = padded_docs
+            self.concepts = padded_concepts
+
+        else: 
+            padded_docs = []
+            for doc in self.docs:
+                if len(doc) < self.length:
+                    doc.extend([0] * (self.length - len(doc))) #TODO: fix padding**
+                padded_docs.append(doc)
+            self.docs = padded_docs
+
 
     def to_ret(self):
-        return np.array(self.docs), np.array(self.concepts), np.array(self.labels), np.array(self.hadm_ids), self.code_set,\
-               np.array(self.descs)
+        return np.array(self.docs), np.array(self.concepts), np.array(self.labels), np.array(self.hadm_ids), self.code_set,np.array(self.descs)
     #TODO: EMPTY CONCEPTS LST PASSED IF NOT A THING FOR THAT PARTICULAR MODEL
 
 def pad_desc_vecs(desc_vecs):
@@ -114,40 +131,7 @@ def pad_desc_vecs(desc_vecs):
         pad_vecs.append(vec)
     return pad_vecs
 
-def data_generator_GRAM(filename, concepts_file, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
-    """
-        Inputs:
-            filename: holds data sorted by sequence length, for best batching
-            dicts: holds all needed lookups
-            batch_size: the batch size for train iterations
-            num_labels: size of label output space
-            desc_embed: true if using DR-CAML (lambda > 0)
-            version: which (MIMIC) dataset
-        Yields:
-            np arrays with data for training loop.
-    """
-    #TODO: HERE, YIELD A concepts matrix as well as its lookup
-    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept']
-    with open(filename, 'r') as infile, open(concepts_file, 'r') as concepts_file:
-            c = csv.reader(concept_file)
-            r = csv.reader(infile)
-            #header
-            next(r)
-            next(c)
-            cur_inst = Batch(desc_embed)
-            for concept, row in zip(c,r):
-                #find the next `batch_size` instances
-                if len(cur_inst.docs) == batch_size:
-                    cur_inst.pad_docs()
-                    yield cur_inst.to_ret()
-                    #clear
-                    cur_inst = Batch(desc_embed)
-                cur_inst.add_instance((row,concept), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, concepts=True)
-            cur_inst.pad_docs()
-            yield cur_inst.to_ret()
-
-#TODO: THE OLD VERSION
-def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, version='mimic3'):
+def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=False, version='mimic3'):
     """
         Inputs:
             filename: holds data sorted by sequence length, for best batching
@@ -161,7 +145,14 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
     """
 
     #TODO: HERE, yield a concepts matrix as well with the same type of lookups**
-    ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
+    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept']
+
+    if GRAM:
+        #load concepts matrix
+        concept_dict = pickle.load(open(concepts_file), 'rb')
+    else:
+        concept_dict = None
+
     with open(filename, 'r') as infile:
         r = csv.reader(infile)
         #header
@@ -170,12 +161,12 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
         for row in r:
             #find the next `batch_size` instances
             if len(cur_inst.docs) == batch_size:
-                cur_inst.pad_docs()
+                cur_inst.pad_docs(GRAM)
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, None, None, num_labels, concepts=False)
-        cur_inst.pad_docs()
+            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, GRAM)
+        cur_inst.pad_docs(GRAM)
         yield cur_inst.to_ret()
 
 def load_vocab_dict(args, vocab_file):
@@ -201,7 +192,7 @@ def load_lookups(args, desc_embed=False):
             args: Input arguments
             desc_embed: true if using DR-CAML
         Outputs:
-            vocab lookups, ICD code lookups, description lookup, description one-hot vector lookup
+            vocab lookups, ICD code lookups, description lookup, description one-hot vector lookup, concept lookups
     """
     #get vocab lookups
     ind2w, w2ind = load_vocab_dict(args, args.vocab)
@@ -261,12 +252,16 @@ def load_full_codes(train_path, version='mimic3'):
     else:
         codes = set()
         for split in ['train', 'dev', 'test']:
-            with open(train_path.replace('train', split), 'r') as f:
-                lr = csv.reader(f)
-                next(lr)
-                for row in lr:
-                    for code in row[3].split(';'):
-                        codes.add(code)
+            try:
+                with open(train_path.replace('train', split), 'r') as f:
+                    lr = csv.reader(f)
+                    next(lr)
+                    for row in lr:
+                        for code in row[3].split(';'):
+                            codes.add(code)
+            except StopIteration:
+                print("FILE IS EMPTY")
+                pass
         codes = set([c for c in codes if c != ''])
         ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes))})
     return ind2c, desc_dict
@@ -276,12 +271,11 @@ def load_concepts():
 
     codes = set()
     for split in ['train', 'dev', 'test']:
-        with open(os.path.join(concept_write_dir,'%s_concepts.csv' % split)) as f:
-            lr = csv.reader(f)
-            next(lr)
-            for row in lr:
-                codes.add(row)
-    ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes))})
+        with open(os.path.join(concept_write_dir,'%s_meta_concepts.txt' % split)) as f:
+            content = f.readlines()
+        codes.update([x.strip() for x in content]) #add in the new values to the set
+    ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
+    print(len(ind2c))
     return ind2c
 
 def reformat(code, is_diag):

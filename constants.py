@@ -1,6 +1,6 @@
 PAD_CHAR = "**PAD**"
 EMBEDDING_SIZE = 100
-MAX_LENGTH = 2500
+MAX_LENGTH = 2500 #TODO: UNDO***
 
 #where you want to save any models you may train
 #MODEL_DIR = '/data/mimicdata/'
@@ -11,7 +11,7 @@ xmi_dir = '/data/mimicdata/mimic3/patient_notes/train_out'
 
 DATA_DIR = '/Users/SWiegreffe/Desktop/mimicdata'
 
-concept_write_dir = DATA_DIR #'/data/mimicdata/mimic3/' 
+concept_write_dir = DATA_DIR + '/concepts' #'/data/mimicdata/mimic3/' 
     #TODO: need the following files: -train_concepts.csv
                                    # -test_concepts.csv
                                    # -dev_concepts.csv
