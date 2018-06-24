@@ -312,13 +312,50 @@ def get_concept_text_alignment():
 			print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
 			#--------------------------------------------------
 
+def get_parent_trees(split):
+	'''This method takes the input codeset and calculates the parent trees from them, adding the parent codes to the full set as well.
+	We also create a dictionary mapping from child to parents.'''
+
+	'''code heavily influenced by Edward Choi's build_trees script from the original GRAM implementation,
+	found here: https://github.com/mp2893/gram/blob/master/build_trees.py'''
+
+	df_mapping_diagnoses = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'))
+	df_mapping_procedures = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_pr_tool_2015.csv'))
+	print(df_mapping_diagnoses.shape)
+	#print(df_mapping_procedures.shape)
+	print(df_mapping_diagnoses.head())
+	print(df_mapping_diagnoses.columns)
+	#print(df_mapping_procedures.head())
+
+	#fix ICD9 format
+	fn = lambda x: diag_process(x[1:-1].strip())
+
+	def diag_process(code):
+		if code.startswith('E'):
+			if len(code) > 4: code = code[:4] + '.' + code[4:]
+		else:
+			if len(code) > 3: code = code[:3] + '.' + code[3:]
+			code = 'D_' + code
+		return code
+
+	df_mapping_diagnoses['\'ICD-9-CM CODE\''] = df_mapping_diagnoses['\'ICD-9-CM CODE\''].apply(fn)
+	print(df_mapping_diagnoses.head())
+
+	with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as f:
+		lines = f.read().splitlines()
+		#these are the child codes
+		for line in lines:
+			pass
+
+
 if __name__ == '__main__':
 	#map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
 	#map_snomed_to_icd()
 	#get_SNOMED_to_ICD_stats()
 	#map_extr_concepts_to_icd()
 	#restructure_concepts_for_batched_input()
-	get_concept_text_alignment()
+	#get_concept_text_alignment()
+	get_parent_trees('train')
 
 
 

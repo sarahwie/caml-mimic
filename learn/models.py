@@ -94,8 +94,6 @@ class ConvAttnPool(BaseModel):
     def __init__(self, Y, embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, embed_size=100, dropout=0.5):
         super(ConvAttnPool, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
-        #TODO SARAH: here, init GRAM inputs**
-
         #initialize conv layer as in 2.1
         self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=floor(kernel_size/2))
         xavier_uniform(self.conv.weight)
@@ -256,6 +254,120 @@ class ConvAttnPoolPlusGram(BaseModel):
 
         # #perform attn.:
 #-------------------------------------------------------------------
+
+        #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
+        #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
+        z = self.embed_drop(z)
+
+        #THIS PART IS IDENTICAL TO JAMES' MODEL--
+        #-------------------------------------------------------------------------------------------------------------
+        # apply convolution and nonlinearity (tanh)
+        z = F.tanh(self.conv(z).transpose(1, 2))
+        print(z.size())
+        # apply attention
+        alpha = F.softmax(self.U.weight.matmul(z.transpose(1, 2)), dim=2)
+        # document representations are weighted sums using the attention. Can compute all at once as a matmul
+        m = alpha.matmul(z)
+        # final layer classification
+        y = self.final.weight.mul(m).sum(dim=2).add(self.final.bias)
+
+        if desc_data is not None:
+            # run descriptions through description module
+            b_batch = self.embed_descriptions(desc_data, self.gpu)
+            # get l2 similarity loss
+            diffs = self._compare_label_embeddings(target, b_batch, desc_data)
+        else:
+            diffs = None
+
+        # final sigmoid to get predictions
+        yhat = F.sigmoid(y)
+        loss = self._get_loss(yhat, target, diffs)
+        return yhat, loss, alpha
+
+class ConvAttnPoolPlusConceptEmbeds(BaseModel):
+    def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, hidden_sim_size=20, embed_size=100, dropout=0.5):
+        super(ConvAttnPoolPlusGram, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
+
+        #make embedding layer
+        if code_embed_file:
+            print("loading pretrained CODE embeddings...")
+            #TODO: UPDATE HERE TO LOAD IN PRETRAINED CODE_EMBEDDINGS FILE
+            #W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
+            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1])
+            # self.embed.weight.data = W.clone()
+            raise Exception("*TODO not completed*")
+
+        else:
+            #TODO: make sure this is what want**
+            print("Catch: NOT using pretrained code embeddings!")
+            concepts_size = len(dicts['ind2concept'])
+            self.concept_embed = nn.Embedding(concepts_size, embed_size) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
+            #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
+
+        #same network as James here
+
+        # initialize conv layer as in 2.1
+        self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=floor(kernel_size / 2))
+        xavier_uniform(self.conv.weight)
+
+        # context vectors for computing attention as in 2.2
+        self.U = nn.Linear(num_filter_maps, Y)
+        xavier_uniform(self.U.weight)
+
+        # final layer: create a matrix to use for the L binary classifiers as in 2.3
+        self.final = nn.Linear(num_filter_maps, Y)
+        xavier_uniform(self.final.weight)
+
+        # conv for label descriptions as in 2.5
+        # description module has its own embedding and convolution layers
+        if lmbda > 0:
+            W = self.embed.weight.data
+            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1])
+            self.desc_embedding.weight.data = W.clone()
+
+            self.label_conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size,
+                                        padding=floor(kernel_size / 2))
+            xavier_uniform(self.label_conv.weight)
+
+            self.label_fc1 = nn.Linear(num_filter_maps, num_filter_maps)
+            xavier_uniform(self.label_fc1.weight)
+
+    def forward(self, data, target, desc_data=None, get_attention=True):
+
+        x, concepts = data #unpack input
+
+        # get embeddings
+        x = self.embed(x)
+        x = x.transpose(1, 2)
+
+        c = self.concept_embed(concepts)
+        c = c.transpose(1, 2)
+
+        #RECONSTRUCT THE INPUT EMBEDDING MATRIX BASED ON USING THE CONCEPTS OR WORDS
+        #TODO: rewrite this to be performed in matrix form? (no obvious way, can look into l8r)
+        #TODO: here is where we can add a learnable weighting function for the two embeddings
+        for batch_el in range(c.shape[0]):                
+            for word in range(c.shape[2]):
+                if word == 0: #first element and first array: create new one
+                    if concepts[batch_el, word].data[0] != 0: 
+                        patient_embed = c[batch_el, :, word]
+                    else:
+                        patient_embed = x[batch_el, :, word]
+                    patient_embed = patient_embed.view(1,-1,1)
+
+                else: #not first word
+                    if concepts[batch_el, word].data[0] != 0: 
+                        patient_embed = torch.cat((patient_embed, c[batch_el, :, word].view(1,-1,1)), 2)
+                    else:
+                        patient_embed = torch.cat((patient_embed, x[batch_el, :, word].view(1,-1,1)), 2)
+
+            #make large patient matrix
+            if batch_el == 0:
+                z = patient_embed
+            else:
+                z = torch.cat((z, patient_embed), 0)
+
+        print(z.size())
 
         #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
         #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
