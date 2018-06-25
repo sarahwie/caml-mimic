@@ -98,7 +98,8 @@ def parse_xmi(args):
         #merge the lookups info with the
         df_local = df_local.merge(lookups, how='inner', left_on='lookup_id', right_on='lookup_id')
 
-        df_local['code'] = df_local['code'].astype(str)
+        if not df_local.empty:
+            df_local['code'] = df_local['code'].astype(str)
 
         #TODO: UPDATE HERE**
         for i, row in df_local.iterrows():
@@ -110,8 +111,9 @@ def parse_xmi(args):
         num_codes.append(len(df_local))
 
         #add in text info
-        fn = lambda x: text[int(x['begin_inx']):int(x['end_inx'])]
-        df_local['word_phrase'] = df_local.apply(fn, axis=1)
+        if not df_local.empty:
+            fn = lambda x: text[int(x['begin_inx']):int(x['end_inx'])]
+            df_local['word_phrase'] = df_local.apply(fn, axis=1)
 
         #go ahead and create concept matrix:
         concept_arr = extension_tools.get_concept_matrix(df_local, text)
