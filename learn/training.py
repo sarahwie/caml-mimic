@@ -274,6 +274,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         window_size = model.conv.weight.data.size()[2]
 
     y, yhat, yhat_raw, hids, losses = [], [], [], [], []
+    ind2w, w2ind, ind2c, c2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind']
 
     desc_embed = model.lmbda > 0
     if desc_embed and len(code_inds) > 0:

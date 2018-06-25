@@ -312,6 +312,65 @@ def get_concept_text_alignment():
 			print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
 			#--------------------------------------------------
 
+def get_concept_matrix(sub, text):
+
+	words = text.strip().split()
+	concept_arr = [0] * len(words)
+
+	starting_inxs = [0] + [m.start()+1 for m in re.finditer(' ', text)]
+	ending_inxs = [m.end()-1 for m in re.finditer(' ', text)] + [len(text)]
+
+	#so now, these indices can be used to mark word positions in sep. text, aka text[starting_inxs[0]:ending_inxs[0]] == words[0]
+
+	if len(words) != len(starting_inxs) or len(words) != len(ending_inxs):
+		raise Exception("not the same length!")
+
+	#POPULATE
+	for _, row in sub.iterrows():
+
+		#get the beginning and end index positions, the ICD9_code, etc.
+		#row['begin_inx'] #these indices are the same as python indexing! (nice)**
+		#row['end_inx']
+		#row['word_phrase']
+		#TODO: MAPPING HERE***
+
+		if row['begin_inx'] in starting_inxs and row['end_inx'] in ending_inxs:
+
+			#write code to position in array
+			word_pos = starting_inxs.index(row['begin_inx'])
+			# if concept_arr[word_pos] != 0:
+			# 	if isinstance(concept_arr[word_pos], list):
+			# 		concept_arr[word_pos].append(row['ICD9_code'])
+			# 	else: 
+			# 		concept_arr[word_pos] = [concept_arr[word_pos]] + [row['ICD9_code']]
+			# 	overlaps += 1
+			# else:
+			# 	concept_arr[word_pos] = row['ICD9_code']
+
+			#TODO:**for now, just make single code version**
+			concept_arr[word_pos] = row['code']
+
+			#check for overlap
+			end_pos = ending_inxs.index(row['end_inx'])
+			if word_pos != end_pos:
+				# if concept_arr[end_pos] != 0: #if we have an overlap, append to list: TODO CHECK THIS
+				# 	if isinstance(concept_arr[end_pos], list):
+				# 		concept_arr[end_pos].append(row['ICD9_code'])
+				# 	else: 
+				# 		concept_arr[end_pos] = [concept_arr[end_pos]] + [row['ICD9_code']]
+				# 	overlaps += 1
+				# else:
+				# 	concept_arr[end_pos] = row['ICD9_code']
+
+				#TODO:**for now, just make single code version**
+				concept_arr[end_pos] = row['code']
+
+		else:
+			print("ALIGNMENT ISSUE-MISSED CONCEPT")
+
+	return concept_arr
+
+
 def get_parent_trees(split):
 	'''This method takes the input codeset and calculates the parent trees from them, adding the parent codes to the full set as well.
 	We also create a dictionary mapping from child to parents.'''
