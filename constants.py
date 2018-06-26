@@ -6,7 +6,6 @@ MAX_LENGTH = 2500 #TODO: UNDO***
 #MODEL_DIR = '/data/mimicdata/'
 MODEL_DIR = '/Users/SWiegreffe/Desktop/mimicdata/saved_models'
 
-test_dir = '/Users/SWiegreffe/Desktop/xml' #'I://progress_notes/data/notes/testing_parsing_xmi' 
 xmi_dir = '/data/mimicdata/mimic3/patient_notes/train_out'
 
 DATA_DIR = '/Users/SWiegreffe/Desktop/mimicdata'

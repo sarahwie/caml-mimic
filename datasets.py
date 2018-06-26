@@ -19,6 +19,7 @@ class Batch:
     def __init__(self, desc_embed):
         self.docs = []
         self.concepts = []
+        self.parents = []
         self.labels = []
         self.hadm_ids = []
         self.code_set = set()
@@ -27,7 +28,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, GRAM):
+    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, num_labels, GRAM):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -66,7 +67,7 @@ class Batch:
         words = text.strip().split()
         text = [int(w2ind[w]) if w in w2ind else len(w2ind)+1 for w in words]
 
-        if GRAM: #get concepts array from file, convert to index
+        if GRAM: #get concepts (and parents) arrays from file, dictionary respectively, convert to index
 
             joint_id = row[0] + '_' + row[1]
             #TODO: MULTI-LABEL FOR ONE-POSITION CASE**
@@ -75,8 +76,12 @@ class Batch:
             assert len(con) == len(text)
             #print(con)
 
+            #TODO: GET PARENTS**
+            pars = 
+
             #append to arraylist we're keeping
             self.concepts.append(con)
+            self.parents.append(pars)
 
         #truncate long documents
         if len(text) > self.max_length: #TODO: UNDO FOR SH CASE**
@@ -118,7 +123,7 @@ class Batch:
 
 
     def to_ret(self):
-        return np.array(self.docs), np.array(self.concepts), np.array(self.labels), np.array(self.hadm_ids), self.code_set,np.array(self.descs)
+        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.hadm_ids), self.code_set,np.array(self.descs)
     #TODO: EMPTY CONCEPTS LST PASSED IF NOT A THING FOR THAT PARTICULAR MODEL
 
 def pad_desc_vecs(desc_vecs):
@@ -145,7 +150,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
     """
 
     #TODO: HERE, yield a concepts matrix as well with the same type of lookups**
-    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept']
+    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept, child2parents = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept'], dicts['child2parents']
 
     if GRAM:
         #load concepts matrix
@@ -165,7 +170,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, num_labels, GRAM)
+            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, num_labels, GRAM)
         cur_inst.pad_docs(GRAM)
         yield cur_inst.to_ret()
 
@@ -212,10 +217,12 @@ def load_lookups(args, desc_embed=False):
 
     if args.model == 'conv_attn_plus_GRAM':
         ind2concept = load_concepts()
-        concept2ind = {c:i for i,c in ind2concept.items()}
+        concept2ind = {c:i for i,c in ind2concept.items()} 
+        child2parents = pickle.load(open(os.path.join(concept_write_dir, 'code_parents.p'), 'rb')) #TODO: UPDATE THIS LINE**
     else:
         ind2concept = None
         concept2ind = None
+        child2parents = None
 
     #get description one-hot vector lookup
     if desc_embed:
@@ -223,7 +230,7 @@ def load_lookups(args, desc_embed=False):
     else:
         dv_dict = None
 
-    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict, 'ind2concept': ind2concept, 'concept2ind':concept2ind}
+    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict, 'ind2concept': ind2concept, 'concept2ind':concept2ind, 'child2parents':child2parents}
     return dicts
 
 def load_full_codes(train_path, version='mimic3'):

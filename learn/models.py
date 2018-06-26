@@ -209,14 +209,36 @@ class ConvAttnPoolPlusGram(BaseModel):
 
     def forward(self, data, target, desc_data=None, get_attention=True):
 
-        x, concepts = data #unpack input
+        x, concepts, parents = data #unpack input
 
         # get embeddings
         x = self.embed(x)
         x = x.transpose(1, 2)
 
+        print(concepts.shape)
+        print(type(concepts))
         c = self.concept_embed(concepts)
         c = c.transpose(1, 2)
+        print(c.shape)
+        print(type(c))
+
+        print(type(parents))
+        print(parents.shape)
+
+#-------------------------------------------------------------------
+        # pull parent codes from expanded codeset
+        # pars = [el for el in child2parents[]]
+        # con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 if w != 0 else 0 for w in concept_dict[joint_id]]
+
+        # #TODO: DO FOR EACH CODE-PAIR*
+        # out = self.fc1(x)
+        # out = self.relu(out)
+        # out = self.fc2(out)
+        # #TODO: CONCAT IN CHILD, ANCESTOR ORDER**
+
+        # #perform attn. & use this to construct inpt embeddings
+
+#-------------------------------------------------------------------
 
         #RECONSTRUCT THE INPUT EMBEDDING MATRIX BASED ON USING THE CONCEPTS OR WORDS
         #TODO: rewrite this to be performed in matrix form? (no obvious way, can look into l8r)
@@ -242,18 +264,7 @@ class ConvAttnPoolPlusGram(BaseModel):
             else:
                 z = torch.cat((z, patient_embed), 0)
 
-        print(z.size())
-#-------------------------------------------------------------------
-        # #TODO: EXPAND OUT CODESET (SOMEWHERE)
-
-        # #TODO: DO FOR EACH CODE-PAIR*
-        # out = self.fc1(x)
-        # out = self.relu(out)
-        # out = self.fc2(out)
-        # #TODO: CONCAT IN CHILD, ANCESTOR ORDER**
-
-        # #perform attn.:
-#-------------------------------------------------------------------
+        # print(z.size())
 
         #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
         #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
@@ -263,7 +274,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         #-------------------------------------------------------------------------------------------------------------
         # apply convolution and nonlinearity (tanh)
         z = F.tanh(self.conv(z).transpose(1, 2))
-        print(z.size())
+        # print(z.size())
         # apply attention
         alpha = F.softmax(self.U.weight.matmul(z.transpose(1, 2)), dim=2)
         # document representations are weighted sums using the attention. Can compute all at once as a matmul

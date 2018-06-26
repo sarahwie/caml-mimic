@@ -184,7 +184,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     #how often to print some info to stdout
     print_every = 25
 
-    ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept'], dicts['concept2ind']
+    ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind, child2parents = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept'], dicts['concept2ind'], dicts['child2parents']
     unseen_code_inds = set(ind2c.keys())
     desc_embed = model.lmbda > 0
 
@@ -192,13 +192,14 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, concepts, target, _, code_set, descs = tup
+        data, concepts, parents, target, _, code_set, descs = tup
         # print(data)
         print(data.shape)
         print(concepts.shape)
+        print(parents.shape)
         print(target.shape)
         if GRAM:
-            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts))), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents))), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
@@ -281,14 +282,16 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         unseen_code_vecs(model, code_inds, dicts, gpu)
 
     model.eval()
+    #**TODO: UPDATE FOR CONCEPTS**
     gen = datasets.data_generator(filename, concepts_file, dicts, 1, num_labels, GRAM, desc_embed=desc_embed, version=version)
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
-        data, concepts, target, hadm_ids, _, descs = tup
+        data, concepts, parents, target, hadm_ids, _, descs = tup
 
+        #TODO: DON"T UPDATE W/ GRADIENT:
         if model_name == 'conv_attn_plus_GRAM':
-            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts))), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True)), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
 

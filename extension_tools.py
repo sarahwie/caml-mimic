@@ -8,7 +8,9 @@ import datetime
 import pandas as pd
 from ast import literal_eval
 import re
-import collections
+from collections import defaultdict
+
+rootCode = '99999'
 
 def map_icd_to_SNOMED():
 
@@ -378,33 +380,148 @@ def get_parent_trees(split):
 	'''code heavily influenced by Edward Choi's build_trees script from the original GRAM implementation,
 	found here: https://github.com/mp2893/gram/blob/master/build_trees.py'''
 
-	df_mapping_diagnoses = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'))
-	df_mapping_procedures = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_pr_tool_2015.csv'))
-	print(df_mapping_diagnoses.shape)
-	#print(df_mapping_procedures.shape)
-	print(df_mapping_diagnoses.head())
-	print(df_mapping_diagnoses.columns)
-	#print(df_mapping_procedures.head())
-
-	#fix ICD9 format
-	fn = lambda x: diag_process(x[1:-1].strip())
-
 	def diag_process(code):
 		if code.startswith('E'):
 			if len(code) > 4: code = code[:4] + '.' + code[4:]
 		else:
 			if len(code) > 3: code = code[:3] + '.' + code[3:]
-			code = 'D_' + code
 		return code
 
-	df_mapping_diagnoses['\'ICD-9-CM CODE\''] = df_mapping_diagnoses['\'ICD-9-CM CODE\''].apply(fn)
-	print(df_mapping_diagnoses.head())
+	def procedure_process(code):
+		code = code[:2] + '.' + code[2:]
+		return code
 
-	with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as f:
-		lines = f.read().splitlines()
-		#these are the child codes
-		for line in lines:
-			pass
+	# df_mapping_diagnoses = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'))
+	# df_mapping_procedures = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_pr_tool_2015.csv'))
+
+	# #fix ICD9 format
+	# fn = lambda x: diag_process(x[1:-1].strip())
+	# fn2 = lambda x: procedure_process(x[1:-1].strip())
+
+	# df_mapping_diagnoses['\'ICD-9-CM CODE\''] = df_mapping_diagnoses['\'ICD-9-CM CODE\''].apply(fn)
+
+	# #do the same for procedures:
+	# df_mapping_procedures['\'ICD-9-CM CODE\''] = df_mapping_procedures['\'ICD-9-CM CODE\''].apply(fn2)
+
+	# #write out for testing/posterity
+	# with open(os.path.join(concept_write_dir, 'DIAG_CODES.txt'), 'w') as the_file:
+	# 	for i, row in df_mapping_diagnoses.iterrows():
+	# 		the_file.write(row['\'ICD-9-CM CODE\'']+ '\n')
+
+	# with open(os.path.join(concept_write_dir, 'PROC_CODES.txt'), 'w') as the_file:
+	# 	for i, row in df_mapping_procedures.iterrows():
+	# 		the_file.write(row['\'ICD-9-CM CODE\'']+ '\n')
+
+	# codes = set()
+	# #make a list of codes and see how many can map
+	# for i, row in df_mapping_diagnoses.iterrows():
+	# 	codes.add(row['\'ICD-9-CM CODE\''])
+
+	# for i, row in df_mapping_procedures.iterrows():
+	# 	codes.add(row['\'ICD-9-CM CODE\''])
+
+
+	# with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as f:
+	# 	lines = f.read().splitlines()
+	# 	#these are the child codes
+	# 	for line in lines:
+	# 		if line not in codes:
+	# 			print(line) #Just one not present**
+
+	#get a mapping for parents: taken from Ed's code
+#------------------------------------------------------------------------------------------
+
+	a = datetime.datetime.now().replace(microsecond=0)
+
+	dirs_map = defaultdict(list)#TODO: RETURN SELF + ROOTCODE**)
+
+	#TODO: INCLUDE A ROOT CODE?? For now, if doesn't have any parents in CCS, just use that embedding**
+
+
+	infd = open(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'), 'r')
+	_ = infd.readline()
+	for line in infd:
+		tokens = line.strip().split(',')
+		icd9 = tokens[0][1:-1].strip()
+		cat1 = tokens[1][1:-1].strip()
+		cat2 = tokens[3][1:-1].strip()
+		cat3 = tokens[5][1:-1].strip()
+		cat4 = tokens[7][1:-1].strip()
+
+		icdCode = diag_process(icd9)
+
+		if len(cat4) > 0:
+			dirs_map[icdCode] = [rootCode, cat1, cat2, cat3, cat4]
+		elif len(cat3) > 0:
+			dirs_map[icdCode] = [rootCode, cat1, cat2, cat3]
+		elif len(cat2) > 0:
+			dirs_map[icdCode] = [rootCode, cat1, cat2]
+		elif len(cat1) > 0:
+			dirs_map[icdCode] = [rootCode, cat1]
+		else:
+			dirs_map[icdCode] = [rootCode]
+
+	infd.close()
+
+	#do the same things for the procedure codes: Note only have max. 3 levels vs. diagnoses' 4
+	infd = open(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_pr_tool_2015.csv'), 'r')
+	_ = infd.readline()
+	for line in infd:
+		tokens = line.strip().split(',')
+		icd9 = tokens[0][1:-1].strip()
+		cat1 = tokens[1][1:-1].strip()
+		cat2 = tokens[3][1:-1].strip()
+		cat3 = tokens[5][1:-1].strip()
+
+		icdCode = procedure_process(icd9)
+
+		if len(cat3) > 0:
+			dirs_map[icdCode] = [rootCode, cat1, cat2, cat3]
+		elif len(cat2) > 0:
+			dirs_map[icdCode] = [rootCode, cat1, cat2]
+		elif len(cat1) > 0:
+			dirs_map[icdCode] = [rootCode, cat1]
+
+	infd.close()
+
+	print(len(dirs_map))
+
+	# #we want to make sure we have a mapping for each code in our vocabulary--
+	# #TODO: UPDATE THIS**
+	# with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as f:
+	# 	lines = f.read().splitlines()
+	# 	#these are the child codes
+	# 	for line in lines:
+	# 		if line not in dirs_map.keys():
+	# 			print(line)
+	# 			dirs_map[line] = [line, rootCode]#Just one not present**
+
+	# print(len(dirs_map))
+	pickle.dump(dirs_map, open(os.path.join(concept_write_dir, 'code_parents.p'), 'wb'))
+
+
+	#Also, rewrite vocab file:
+	codes = set()
+	old_codes = set()
+	#TODO: UPDATE
+	with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as old:
+		for line in old:
+			line = line.strip()
+			codes.add(line)
+			old_codes.add(line)
+			for el in dirs_map[line]:
+				codes.add(el)
+
+	with open(os.path.join(concept_write_dir, '%s_meta_concepts_FULL.txt' % split), 'w') as new:
+		for line in iter(codes):
+			new.write("%s\n" % line)
+
+	print(len(old_codes))
+	print("Number of parent + child codes:", len(codes))
+
+
+	b = datetime.datetime.now().replace(microsecond=0)
+	print("Time to write out dictionary + extended vocabulary:", str(b - a))
 
 
 if __name__ == '__main__':

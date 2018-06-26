@@ -99,7 +99,7 @@ def parse_xmi(args):
         df_local = df_local.merge(lookups, how='inner', left_on='lookup_id', right_on='lookup_id')
 
         if not df_local.empty:
-            df_local['code'] = df_local['code'].astype(str)
+            df_local['code'] = df_local['code'].str.encode('utf-8')
 
         #TODO: UPDATE HERE**
         for i, row in df_local.iterrows():
