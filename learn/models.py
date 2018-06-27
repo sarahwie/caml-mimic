@@ -165,7 +165,8 @@ class ConvAttnPoolPlusGram(BaseModel):
         else:
             #TODO: make sure this is what want**
             print("Catch: NOT using pretrained code embeddings!")
-            concepts_size = len(dicts['ind2concept'])
+            #TODO: FIX OR REMOVE THIS***
+            concepts_size = len(dicts['ind2concept'])+1
             self.concept_embed = nn.Embedding(concepts_size, embed_size) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
             #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
 
@@ -219,63 +220,37 @@ class ConvAttnPoolPlusGram(BaseModel):
         x = self.embed(x)
         x = x.transpose(1, 2)
 
-        #print(concepts.shape)
-        #print(type(concepts))
-        print(concepts.shape)
-        c = self.concept_embed(concepts)
-        c = c.transpose(1, 2)
-        #print(c.shape)
-        #print(type(c))
-
-        # pull parent codes from expanded codeset
-
-        #embed 3D matrix with some fancy stuff (*TODO: TO CHECK*)
-        print("HERE TO CHECK:")
-        print(parents.size())
-        print(parents.view(-1, parents.size(2)).size())
+        # pull parent codes from expanded codeset & embed as 3D matrix
         
-        #FOR TESTING PURPOSES ONLY--
-        #print(parents.view(-1, parents.size(2))[0:464,:].shape)
-        #p = self.concept_embed(parents.view(-1, parents.size(2))[0:464,:])
-
-        #**CAN'T FIX ERROR! SOMETHING ABOUT EVEN WITH SAME DIMS, get "RuntimeError: index out of range at /Users/soumith/code/builder/wheel/pytorch-src/torch/lib/TH/generic/THTensorMath.c:277"
-
         p = self.concept_embed(parents.view(-1, parents.size(2)))
-        print(p.shape)
 
         #reshape
         p = p.view(*parents.size(), -1)
         p = p.transpose(1, 3)
-        print("TODO-- CHECK RESHAPE PRESERVING VALUES:")
-        print(p.shape)
 
         children = p[:, :, 0:1, :].expand(-1,-1,6,-1) #these are the children embeddings
-        print(children.shape)
         
         #TODO: CONCAT IN CHILD, ANCESTOR ORDER-- done**
         inpt = torch.cat((children, p),1)
         inpt = inpt.transpose(1,3)
-        print("Attention Comp. Input:", inpt.size())
 
 #------------------------------------------------------------------
 
         #reshape input matrix for each codepair
         out = self.fc2(self.relu(self.fc1(inpt))) #out becomes our similarity score, softmax across the 5 dimensions
-        print("Attention Comp. Output:", out.size())
+        # print("Attention Comp. Output:", out.size())
 
         #now use attn. to construct inpt embeddings--
         alpha = F.softmax(out, dim=2) #across all 6 scores for a set and its parents**
 
         #Now recombine to produce embedding matrices:
-        new_c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze().transpose(1,2)
+        c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze().transpose(1,2)
 
-        print("CHECK HERE:")
-        print(new_c.size())
-        print(c.size())
+        #print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
 
 #-------------------------------------------------------------------
 
-        print("TODO-- BATCH MATRIX FORMATION")
+        # print("TODO-- BATCH MATRIX FORMATION")
         #RECONSTRUCT THE INPUT EMBEDDING MATRIX BASED ON USING THE CONCEPTS OR WORDS
         #TODO: rewrite this to be performed in matrix form? (no obvious way, can look into l8r)
         #TODO: here is where we can add a learnable weighting function for the two embeddings
@@ -284,13 +259,14 @@ class ConvAttnPoolPlusGram(BaseModel):
 
         #***BIG TODO: CHECK THAT CONCEPT ORDER BEING MAINTAINED***
         #nice feature: it never gets to the padding on the concepts embeddings input :)**
-        for batch_el in range(c.shape[0]):  
+        #TODO: if rewrite, check that ignoring positions holding 0's in concept input**
+        for batch_el in range(x.shape[0]):  
             i = 0              
-            for word in range(c.shape[2]):
+            for word in range(x.shape[2]):
                 if word == 0: #first element and first array: create new one
                     if concepts[batch_el, word].data[0] != 0: 
                         # print("CONCEPT", i)
-                        patient_embed = new_c[batch_el, :, i]
+                        patient_embed = c[batch_el, :, i]
                         i += 1
                     else:
                         patient_embed = x[batch_el, :, word]
@@ -299,7 +275,7 @@ class ConvAttnPoolPlusGram(BaseModel):
                 else: #not first word
                     if concepts[batch_el, word].data[0] != 0: 
                         # print("CONCEPT", i)
-                        patient_embed = torch.cat((patient_embed, new_c[batch_el, :, i].view(1,-1,1)), 2)
+                        patient_embed = torch.cat((patient_embed, c[batch_el, :, i].view(1,-1,1)), 2)
                         i += 1
                     else:
                         patient_embed = torch.cat((patient_embed, x[batch_el, :, word].view(1,-1,1)), 2)
@@ -309,7 +285,6 @@ class ConvAttnPoolPlusGram(BaseModel):
             else:
                 z = torch.cat((z, patient_embed), 0)
 
-        #print(z.size())
         #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
         #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
         z = self.embed_drop(z)
@@ -318,7 +293,6 @@ class ConvAttnPoolPlusGram(BaseModel):
         #-------------------------------------------------------------------------------------------------------------
         # apply convolution and nonlinearity (tanh)
         z = F.tanh(self.conv(z).transpose(1, 2))
-        #print(z.size())
         # apply attention
         #print("U's SHAPE:", self.U.weight.shape)
         #print("SOFTMAX SHAPE:", self.U.weight.matmul(z.transpose(1, 2)).shape)
@@ -345,7 +319,7 @@ class ConvAttnPoolPlusGram(BaseModel):
 
 class ConvAttnPoolPlusConceptEmbeds(BaseModel):
     def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, hidden_sim_size=20, embed_size=100, dropout=0.5):
-        super(ConvAttnPoolPlusGram, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
+        super(ConvAttnPoolPlusConceptEmbeds, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
         #make embedding layer
         if code_embed_file:

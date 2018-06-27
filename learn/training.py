@@ -193,11 +193,10 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
 
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, concepts, parents, target, _, code_set, descs = tup
-        # print(data)
-        print(data.shape)
-        print(concepts.shape)
-        print(parents.shape)
-        print(target.shape)
+        # print(data.shape)
+        # print(parents.shape)
+        # print(target.shape)
+        # print("LARGE INDICES:", parents[np.where(parents >= 2129)])
         if GRAM:
             data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents))), Variable(torch.FloatTensor(target))
         else:

@@ -68,14 +68,16 @@ class Batch:
 
             joint_id = row[0] + '_' + row[1]
             #TODO: MULTI-LABEL FOR ONE-POSITION CASE**
-            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
+            #TODO: REMOVED "+1" HERE ON MISSING INDICES
+            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind) if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
             assert len(con) == len(concept_dict[joint_id])
             assert len(con) == len(text)
 
             #TODO: GET PARENTS (len 6*)**
+            #TODO: WHY ARE THERE CODES WHICH WE HAVE TO EMBED AS UNK IN TRAINING????** see in ConvAttnPoolPlusGram init() in models.py where have extended len(concept_embeddings matrix) by 1!
             parents = [child2parents[ind2concept[child]] if ind2concept[child] in child2parents else [child, rootCode] for child in con if child != 0] #this is the list of parent codes for each concept
-            #convert to indices
-            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind)+1 for it in el] for el in parents]
+            #convert to indices- TODO: REMOVED "+1" HERE ON MISSING INDICES
+            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind) for it in el] for el in parents]
 
             #pad with 0's so each has len. 6 (inc. child itself)
             #TODO: WHAT IS THE ROLE OF THE ROOT CODE HERE-- A 'SHARED' EMBEDDING OF SOME SORT?
