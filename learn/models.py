@@ -223,9 +223,12 @@ class ConvAttnPoolPlusGram(BaseModel):
         # pull parent codes from expanded codeset & embed as 3D matrix
         
         p = self.concept_embed(parents.view(-1, parents.size(2)))
+        print(parents.size())
+        print(p.size())
 
         #reshape
-        p = p.view(*parents.size(), -1)
+        p = p.view(parents.size(0), parents.size(1), parents.size(2), -1)
+        print(p.size())
         p = p.transpose(1, 3)
 
         children = p[:, :, 0:1, :].expand(-1,-1,6,-1) #these are the children embeddings

@@ -348,11 +348,15 @@ if __name__ == "__main__":
     parser.add_argument("Y", type=str, help="size of label space")
     parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved", 'conv_attn_plus_GRAM'], help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train"),
-    parser.add_argument("--concepts_file", type=str, required=False, default=None, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
+    parser.add_argument("--concepts-file", type=str, required=False, default=None, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
     #TODO: ADD CAPABILITIES for ICD10
     parser.add_argument("--annotations", type=str, choices=["ICD9", "ICD10", "SNOMED"], required=False, default=None, dest="annotation_type", help="what kind of code format the annotations output from the parser is in")
     parser.add_argument("--embed-file", type=str, required=False, dest="embed_file",
                         help="path to a file holding pre-trained embeddings")
+    parser.add_argument("--parents-file", type=str, required=False, dest="parents_file",
+                        help="path to a file holding the dictionary mapping children concepts to their parents")
+    parser.add_argument("--concept-vocab", type=str, required=False, dest="concept_vocab",
+                        help="path to a file holding vocab list for discretizing codes and their parents")
     parser.add_argument("--concept-embed-file", type=str, required=False, dest="code_embed_file",
                         help="path to a file holding pre-trained CODE embeddings")
     parser.add_argument("--cell-type", type=str, choices=["lstm", "gru"], help="what kind of RNN to use (default: GRU)", dest='cell_type',

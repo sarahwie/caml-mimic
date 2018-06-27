@@ -139,7 +139,7 @@ def parse_xmi(args):
     if args.no_stats:
         df.to_csv(os.path.join(args.output_dir, 'concept_extraction_stats_%s.csv' % identifier))
 
-    df_meta.to_csv(os.path.join(args.output_dir, 'concepts_%s_ICD9.csv' % identifier))
+    df_meta.to_csv(os.path.join(args.output_dir, 'concepts_%s_ICD9.csv' % identifier), encoding='utf-8')
     #TODO: SUBSET
     with open(os.path.join(args.output_dir, 'concepts_vocab_%s_ICD9.csv' % identifier), 'w') as fp:
         writer = csv.writer(fp)

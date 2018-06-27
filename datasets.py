@@ -121,7 +121,6 @@ class Batch:
 
             #also pad parent concepts:
             max_concepts_in_batch = max(len(l) for l in self.parents)
-            print(max_concepts_in_batch)
             #TODO: HAVE PADDED HERE AS WELL FOR INC. OF BOTH CHILD AND ROOT CODE**
             [xi.extend([[0,0,0,0,0,0]] * (max_concepts_in_batch-len(xi))) for xi in self.parents]
                 #this line extends self.parents in place*
@@ -229,9 +228,9 @@ def load_lookups(args, desc_embed=False):
     c2ind = {c:i for i,c in ind2c.items()}
 
     if args.model == 'conv_attn_plus_GRAM':
-        ind2concept = load_concepts()
+        ind2concept = load_concepts(args)
         concept2ind = {c:i for i,c in ind2concept.items()} 
-        child2parents = pickle.load(open(os.path.join(concept_write_dir, 'code_parents.p'), 'rb')) #TODO: UPDATE THIS LINE**
+        child2parents = pickle.load(open(args.parents_file, 'rb'))
     else:
         ind2concept = None
         concept2ind = None
@@ -273,6 +272,7 @@ def load_full_codes(train_path, version='mimic3'):
         codes = set()
         for split in ['train', 'dev', 'test']:
             try:
+                #TODO: WHY DOES JAMES LOAD FULL CODES (FROM ALL 3 DATASETS) HERE?**
                 with open(train_path.replace('train', split), 'r') as f:
                     lr = csv.reader(f)
                     next(lr)
@@ -287,11 +287,11 @@ def load_full_codes(train_path, version='mimic3'):
     return ind2c, desc_dict
 
 #TODO: UPDATE THIS METHOD BASED ON PROPOSED STRUCTURE OF CONCEPTS_FILE**
-def load_concepts():
+def load_concepts(args):
 
     codes = set()
     for split in ['train', 'dev', 'test']:
-        with open(os.path.join(concept_write_dir,'%s_meta_concepts.txt' % split)) as f:
+        with open(args.concept_vocab) as f:
             content = f.readlines()
         codes.update([x.strip() for x in content]) #add in the new values to the set
     ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
