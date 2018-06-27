@@ -33,9 +33,6 @@ class Batch:
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
 
-        #TODO: UPDATE THIS METHOD TO ALSO INCLUDE CONCEPTS**
-        #TODO: ALSO PAD THE CONCEPT MATRIX
-
         row, concept_dict = inpt
 
         labels = set()
@@ -74,10 +71,17 @@ class Batch:
             con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
             assert len(con) == len(concept_dict[joint_id])
             assert len(con) == len(text)
-            #print(con)
 
-            #TODO: GET PARENTS**
-            pars = 
+            #TODO: GET PARENTS (len 6*)**
+            parents = [child2parents[ind2concept[child]] if ind2concept[child] in child2parents else [child, rootCode] for child in con if child != 0] #this is the list of parent codes for each concept
+            #convert to indices
+            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind)+1 for it in el] for el in parents]
+
+            #pad with 0's so each has len. 6 (inc. child itself)
+            #TODO: WHAT IS THE ROLE OF THE ROOT CODE HERE-- A 'SHARED' EMBEDDING OF SOME SORT?
+            pars = [xi+[0]*(6-len(xi)) for xi in parent_inx]
+
+            #****TODO: ASSERT ORDER HELD-- LOWEST LEVEL, UP****
 
             #append to arraylist we're keeping
             self.concepts.append(con)
@@ -112,6 +116,13 @@ class Batch:
                 padded_concepts.append(con)
             self.docs = padded_docs
             self.concepts = padded_concepts
+
+            #also pad parent concepts:
+            max_concepts_in_batch = max(len(l) for l in self.parents)
+            print(max_concepts_in_batch)
+            #TODO: HAVE PADDED HERE AS WELL FOR INC. OF BOTH CHILD AND ROOT CODE**
+            [xi.extend([[0,0,0,0,0,0]] * (max_concepts_in_batch-len(xi))) for xi in self.parents]
+                #this line extends self.parents in place*
 
         else: 
             padded_docs = []

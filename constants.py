@@ -16,3 +16,6 @@ concept_write_dir = DATA_DIR + '/concepts' #'/data/mimicdata/mimic3/'
                                    # -dev_concepts.csv
 MIMIC_3_DIR = '~/Desktop/mimicdata/mimic3'
 MIMIC_2_DIR = '/path/to/repo/mimicdata/mimic2'
+
+rootCode = '99999'
+

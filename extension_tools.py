@@ -10,8 +10,6 @@ from ast import literal_eval
 import re
 from collections import defaultdict
 
-rootCode = '99999'
-
 def map_icd_to_SNOMED():
 
 	with open(os.path.join(DATA_DIR, 'ICD9CM_SNOMEDCT_map_201712/ICD9CM_SNOMED_MAP_1TOM_201712.txt'), 'r') as f:
@@ -436,7 +434,7 @@ def get_parent_trees(split):
 	dirs_map = defaultdict(list)#TODO: RETURN SELF + ROOTCODE**)
 
 	#TODO: INCLUDE A ROOT CODE?? For now, if doesn't have any parents in CCS, just use that embedding**
-
+	#TODO: HERE, MAKE SURE DUPLICATE ALL CHANGES FOR BOTH PROCS AND DIAGS FILES :)
 
 	infd = open(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'), 'r')
 	_ = infd.readline()
@@ -451,15 +449,13 @@ def get_parent_trees(split):
 		icdCode = diag_process(icd9)
 
 		if len(cat4) > 0:
-			dirs_map[icdCode] = [rootCode, cat1, cat2, cat3, cat4]
+			dirs_map[icdCode] = [icdCode, cat4, cat3, cat2, cat1, rootCode]
 		elif len(cat3) > 0:
-			dirs_map[icdCode] = [rootCode, cat1, cat2, cat3]
+			dirs_map[icdCode] = [icdCode, cat3, cat2, cat1, rootCode]
 		elif len(cat2) > 0:
-			dirs_map[icdCode] = [rootCode, cat1, cat2]
+			dirs_map[icdCode] = [icdCode, cat2, cat1, rootCode]
 		elif len(cat1) > 0:
-			dirs_map[icdCode] = [rootCode, cat1]
-		else:
-			dirs_map[icdCode] = [rootCode]
+			dirs_map[icdCode] = [icdCode, cat1, rootCode]
 
 	infd.close()
 
@@ -476,11 +472,11 @@ def get_parent_trees(split):
 		icdCode = procedure_process(icd9)
 
 		if len(cat3) > 0:
-			dirs_map[icdCode] = [rootCode, cat1, cat2, cat3]
+			dirs_map[icdCode] = [icdCode, cat3, cat2, cat1, rootCode]
 		elif len(cat2) > 0:
-			dirs_map[icdCode] = [rootCode, cat1, cat2]
+			dirs_map[icdCode] = [icdCode, cat2, cat1, rootCode]
 		elif len(cat1) > 0:
-			dirs_map[icdCode] = [rootCode, cat1]
+			dirs_map[icdCode] = [icdCode, cat1, rootCode]
 
 	infd.close()
 
@@ -496,7 +492,7 @@ def get_parent_trees(split):
 	# 			print(line)
 	# 			dirs_map[line] = [line, rootCode]#Just one not present**
 
-	# print(len(dirs_map))
+	print(dirs_map)
 	pickle.dump(dirs_map, open(os.path.join(concept_write_dir, 'code_parents.p'), 'wb'))
 
 
