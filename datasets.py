@@ -73,6 +73,10 @@ class Batch:
             assert len(con) == len(concept_dict[joint_id])
             assert len(con) == len(text)
 
+            #truncate concepts
+            if len(con) > self.max_length:
+                con = con[:self.max_length]
+
             #TODO: GET PARENTS (len 6*)**
             #TODO: WHY ARE THERE CODES WHICH WE HAVE TO EMBED AS UNK IN TRAINING????** see in ConvAttnPoolPlusGram init() in models.py where have extended len(concept_embeddings matrix) by 1!
             parents = [child2parents[ind2concept[child]] if ind2concept[child] in child2parents else [child, rootCode] for child in con if child != 0] #this is the list of parent codes for each concept
@@ -115,6 +119,7 @@ class Batch:
                     con.extend([0] * (self.length - len(con))) #TODO: fix padding**
                     assert len(doc) == len(con) 
                 padded_docs.append(doc)
+                assert len(con) == len(doc)
                 padded_concepts.append(con)
             self.docs = padded_docs
             self.concepts = padded_concepts
