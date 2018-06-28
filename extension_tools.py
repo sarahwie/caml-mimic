@@ -498,7 +498,7 @@ def remerge_dictionary():
 		reader = csv.reader(f)
 		#next(reader) #no header
 		for line in reader:
-			concepts.append(line[0]) #TODO: here, could instead join all the rows w/ the same concept id and then use the value in line[1] post-join to cut by occ. threshold
+			concepts.add(line[0]) #TODO: here, could instead join all the rows w/ the same concept id and then use the value in line[1] post-join to cut by occ. threshold
 
 	print(len(concepts)) #TODO: probably worth a check here that actually aligns with other file**
 
@@ -531,11 +531,6 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 
 	print(len(old_codes))
 	print("Number of parent + child codes:", len(codes))
-
-
-	b = datetime.datetime.now().replace(microsecond=0)
-	print("Time to write out dictionary + extended vocabulary:", str(b - a))
-
 
 if __name__ == '__main__':
 	#map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
