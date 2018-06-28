@@ -294,10 +294,10 @@ def load_concepts(args):
         with open(args.concept_vocab) as f:
             content = f.readlines()
         codes.update([x.strip() for x in content]) #add in the new values to the set
-    ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
+    ind2concept = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
     #print(len(ind2c))
     #print(ind2c)
-    return ind2c
+    return ind2concept
 
 def reformat(code, is_diag):
     """

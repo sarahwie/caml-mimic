@@ -203,7 +203,10 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
         unseen_code_inds = unseen_code_inds.difference(code_set)
-        if gpu:
+        if gpu and GRAM:
+            data = (data[0].cuda(), data[1].cuda(), data[2].cuda())
+            target = target.cuda()
+        elif gpu:
             data = data.cuda()
             target = target.cuda()
         optimizer.zero_grad()
@@ -294,7 +297,10 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
 
-        if gpu:
+        if gpu and GRAM:
+            data = (data[0].cuda(), data[1].cuda(), data[2].cuda())
+            target = target.cuda()
+        elif gpu:
             data = data.cuda()
             target = target.cuda()
         model.zero_grad()
