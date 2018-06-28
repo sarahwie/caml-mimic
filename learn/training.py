@@ -261,10 +261,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     filename = data_path.replace('train', fold) 
     if GRAM:
-        #concepts_file = concepts_file.replace('train', fold)
-        #for now (small subset test), this is the same file
-        #TODO: REVERT
-        concepts_file = concepts_file
+        concepts_file = concepts_file.replace('train', fold)
     else:
         concepts_file = None
     print('file for evaluation: %s' % filename)
