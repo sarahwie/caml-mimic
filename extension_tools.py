@@ -371,7 +371,7 @@ def get_concept_matrix(sub, text):
 	return concept_arr
 
 
-def get_parent_trees(split):
+def get_parent_trees():
 	'''This method takes the input codeset and calculates the parent trees from them, adding the parent codes to the full set as well.
 	We also create a dictionary mapping from child to parents.'''
 
@@ -482,33 +482,50 @@ def get_parent_trees(split):
 
 	print(len(dirs_map))
 
-	# #we want to make sure we have a mapping for each code in our vocabulary--
-	# #TODO: UPDATE THIS**
-	# with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as f:
-	# 	lines = f.read().splitlines()
-	# 	#these are the child codes
-	# 	for line in lines:
-	# 		if line not in dirs_map.keys():
-	# 			print(line)
-	# 			dirs_map[line] = [line, rootCode]#Just one not present**
+	#TODO: we want to make sure we have a mapping for each code in our original vocabulary-- this is coded into the main model code by the defaultdict
 
 	print(dirs_map)
 	pickle.dump(dirs_map, open(os.path.join(concept_write_dir, 'code_parents.p'), 'wb'))
 
+	update_vocab(dirs_map, os.path.join(concept_write_dir, 'train_meta_concepts.txt'), concept_write_dir)
 
-	#Also, rewrite vocab file:
+'''This method is due to us manually parallelizing the creation of the training data concept vocab.
+We now need a method to merge them back together'''
+def remerge_dictionary():
+
+	concepts = set()
+	with open('/data/mimicdata/mimic3/patient_notes/extracted_concepts/concepts_vocab_train_ICD9.csv', 'r') as f:
+		reader = csv.reader(f)
+		#next(reader) #no header
+		for line in reader:
+			concepts.append(line[0]) #TODO: here, could instead join all the rows w/ the same concept id and then use the value in line[1] post-join to cut by occ. threshold
+
+	print(len(concepts)) #TODO: probably worth a check here that actually aligns with other file**
+
+	#write back out to file
+	with open('/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', 'w') as new:
+		for line in iter(concepts):
+			new.write("%s\n" % line)
+
+def update_vocab(dirs_map, old_vocab, out_dir, load=False):
+
+	if load:
+		d = pickle.load(open(dirs_map, 'rb'))
+	else:
+		d= dirs_map
+
 	codes = set()
 	old_codes = set()
 	#TODO: UPDATE
-	with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as old:
+	with open(old_vocab, 'r') as old:
 		for line in old:
 			line = line.strip()
 			codes.add(line)
 			old_codes.add(line)
-			for el in dirs_map[line]:
+			for el in d[line]:
 				codes.add(el)
 
-	with open(os.path.join(concept_write_dir, '%s_meta_concepts_FULL.txt' % split), 'w') as new:
+	with open(os.path.join(out_dir, 'concept_vocab.txt'), 'w') as new:
 		for line in iter(codes):
 			new.write("%s\n" % line)
 
@@ -527,7 +544,10 @@ if __name__ == '__main__':
 	#map_extr_concepts_to_icd()
 	#restructure_concepts_for_batched_input()
 	#get_concept_text_alignment()
-	get_parent_trees('train')
+	#get_parent_trees('train')
+
+	remerge_dictionary()
+	update_vocab('/data/mimicdata/mimic3/patient_notes/code_parents.p', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/', load=True)
 
 
 

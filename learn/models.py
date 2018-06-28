@@ -223,12 +223,9 @@ class ConvAttnPoolPlusGram(BaseModel):
         # pull parent codes from expanded codeset & embed as 3D matrix
         
         p = self.concept_embed(parents.view(-1, parents.size(2)))
-        print(parents.size())
-        print(p.size())
 
         #reshape
         p = p.view(parents.size(0), parents.size(1), parents.size(2), -1)
-        print(p.size())
         p = p.transpose(1, 3)
 
         children = p[:, :, 0:1, :].expand(-1,-1,6,-1) #these are the children embeddings
@@ -247,7 +244,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         alpha = F.softmax(out, dim=2) #across all 6 scores for a set and its parents**
 
         #Now recombine to produce embedding matrices:
-        c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze().transpose(1,2)
+        c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze(2).transpose(1,2)
 
         #print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
 
@@ -336,7 +333,7 @@ class ConvAttnPoolPlusConceptEmbeds(BaseModel):
         else:
             #TODO: make sure this is what want**
             print("Catch: NOT using pretrained code embeddings!")
-            concepts_size = len(dicts['ind2concept'])
+            concepts_size = len(dicts['ind2concept'])+1
             print("CONCEPTS SIZE:", concepts_size)
             self.concept_embed = nn.Embedding(concepts_size, embed_size) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
             #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*

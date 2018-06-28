@@ -261,7 +261,10 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     filename = data_path.replace('train', fold) 
     if GRAM:
-        concepts_file = concepts_file.replace('train', fold)
+        #concepts_file = concepts_file.replace('train', fold)
+        #for now (small subset test), this is the same file
+        #TODO: REVERT
+        concepts_file = concepts_file
     else:
         concepts_file = None
     print('file for evaluation: %s' % filename)
@@ -274,7 +277,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         window_size = model.conv.weight.data.size()[2]
 
     y, yhat, yhat_raw, hids, losses = [], [], [], [], []
-    ind2w, w2ind, ind2c, c2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind']
+    ind2w, w2ind, ind2c, c2ind, ind2concept, concept2ind, child2parents = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['ind2concept'], dicts['concept2ind'], dicts['child2parents']
 
     desc_embed = model.lmbda > 0
     if desc_embed and len(code_inds) > 0:
@@ -289,7 +292,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         data, concepts, parents, target, hadm_ids, _, descs = tup
 
         #TODO: DON"T UPDATE W/ GRADIENT:
-        if model_name == 'conv_attn_plus_GRAM':
+        if GRAM:
             data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True)), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
