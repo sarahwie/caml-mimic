@@ -17,6 +17,10 @@ import time
 from constants import *
 from dataproc import extract_wvs
 
+def where(cond, x_1, x_2):
+    cond = cond.float()    
+    return (cond * x_1) + ((1-cond) * x_2)
+
 class BaseModel(nn.Module):
 
     def __init__(self, Y, embed_file, dicts, lmbda=0, dropout=0.5, gpu=True, embed_size=100):
@@ -214,7 +218,7 @@ class ConvAttnPoolPlusGram(BaseModel):
 
     def forward(self, data, target, desc_data=None, get_attention=True):
 
-        x, concepts, parents = data #unpack input
+        x, concepts, parents, batched_concepts_mask = data #unpack input
 
         # get embeddings
         x = self.embed(x)
@@ -234,7 +238,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         inpt = torch.cat((children, p),1)
         inpt = inpt.transpose(1,3)
 
-#------------------------------------------------------------------
+#------------------------------------------------------------------ LEARN CONCEPT EMBEDDINGS
 
         #reshape input matrix for each codepair
         out = self.fc2(self.relu(self.fc1(inpt))) #out becomes our similarity score, softmax across the 5 dimensions
@@ -246,60 +250,43 @@ class ConvAttnPoolPlusGram(BaseModel):
         #Now recombine to produce embedding matrices:
         c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze(2).transpose(1,2)
 
-        #print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
+        # print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
 
-#-------------------------------------------------------------------
+#------------------------------------------------------------------- JOIN CONCEPT & WORD MATRICES 
 
-        # print("TODO-- BATCH MATRIX FORMATION")
-        #RECONSTRUCT THE INPUT EMBEDDING MATRIX BASED ON USING THE CONCEPTS OR WORDS
-        #TODO: rewrite this to be performed in matrix form? (no obvious way, can look into l8r)
-        #TODO: here is where we can add a learnable weighting function for the two embeddings
+        #if this isn't a test case with no extracted concepts, proceed
+        if batched_concepts_mask is not None:
+            #TODO: here is where we can add a learnable weighting function for the two embeddings
 
-        #NEW_C SHAPE: [16,100,29]
+            concept_mask = batched_concepts_mask.expand(c.size(1),-1, -1).transpose(0,1) 
+            #only pull those concept embeddings which represent the actual positions of the concepts
+            concept_embeds = c[concept_mask] #**row-stacked**
 
-        #***BIG TODO: CHECK THAT CONCEPT ORDER BEING MAINTAINED***
-        #nice feature: it never gets to the padding on the concepts embeddings input :)**
-        #TODO: if rewrite, check that ignoring positions holding 0's in concept input**
-        for batch_el in range(x.shape[0]):  
-            i = 0              
-            for word in range(x.shape[2]):
-                if word == 0: #first element and first array: create new one
-                    if concepts[batch_el, word].data[0] != 0: 
-                        # print("CONCEPT", i)
-                        patient_embed = c[batch_el, :, i]
-                        i += 1
-                    else:
-                        patient_embed = x[batch_el, :, word]
-                    patient_embed = patient_embed.view(1,-1,1)
+            #get mask over text
+            mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor), Variable(torch.ones(concepts.size())), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor)
+            #reshape/expand along embedding dimension
+            mask = mask.expand(x.size(1),-1, -1).transpose(0,1) #represents positions of concept embeddings in text
 
-                else: #not first word
-                    if concepts[batch_el, word].data[0] != 0: 
-                        # print("CONCEPT", i)
-                        patient_embed = torch.cat((patient_embed, c[batch_el, :, i].view(1,-1,1)), 2)
-                        i += 1
-                    else:
-                        patient_embed = torch.cat((patient_embed, x[batch_el, :, word].view(1,-1,1)), 2)
-            #make large patient matrix
-            if batch_el == 0:
-                z = patient_embed
-            else:
-                z = torch.cat((z, patient_embed), 0)
+            #should have same shape as concept_embeds
+            assert x[mask].size() == c[concept_mask].size()
+
+            #do the sub! woohoo: it works :)
+            x[mask] = c[concept_mask]
 
         #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
         #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
-        z = self.embed_drop(z)
+        x = self.embed_drop(x)
 
-        #THIS PART IS IDENTICAL TO JAMES' MODEL--
-        #-------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------- STANDARD CAML
         # apply convolution and nonlinearity (tanh)
-        z = F.tanh(self.conv(z).transpose(1, 2))
+        x = F.tanh(self.conv(x).transpose(1, 2))
         # apply attention
         #print("U's SHAPE:", self.U.weight.shape)
         #print("SOFTMAX SHAPE:", self.U.weight.matmul(z.transpose(1, 2)).shape)
-        alpha = F.softmax(self.U.weight.matmul(z.transpose(1, 2)), dim=2)
+        alpha = F.softmax(self.U.weight.matmul(x.transpose(1, 2)), dim=2)
         #print(alpha.size())
         # document representations are weighted sums using the attention. Can compute all at once as a matmul
-        m = alpha.matmul(z)
+        m = alpha.matmul(x)
         #print(m.size())
         # final layer classification
         y = self.final.weight.mul(m).sum(dim=2).add(self.final.bias)

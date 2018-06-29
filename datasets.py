@@ -23,6 +23,7 @@ class Batch:
         self.labels = []
         self.hadm_ids = []
         self.code_set = set()
+        self.batched_concepts_mask = []
         self.length = 0
         self.max_length = MAX_LENGTH
         self.desc_embed = desc_embed
@@ -69,6 +70,7 @@ class Batch:
             joint_id = row[0] + '_' + row[1]
             #TODO: MULTI-LABEL FOR ONE-POSITION CASE**
             #TODO: REMOVED "+1" HERE ON MISSING INDICES
+            #just a standard dictionary- this ensures that every patient has been mapped
             con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind) if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
             assert len(con) == len(concept_dict[joint_id])
             assert len(con) == len(text)
@@ -88,10 +90,13 @@ class Batch:
             pars = [xi+[0]*(6-len(xi)) for xi in parent_inx]
 
             #****TODO: ASSERT ORDER HELD-- LOWEST LEVEL, UP****
+            concept_len = [1]*len([el for el in con if el != 0])
+                #if no concepts, an empty list
 
             #append to arraylist we're keeping
             self.concepts.append(con)
             self.parents.append(pars)
+            self.batched_concepts_mask.append(concept_len)
 
         #truncate long documents
         if len(text) > self.max_length: #TODO: UNDO FOR SH CASE**
@@ -106,6 +111,7 @@ class Batch:
             self.descs.append(pad_desc_vecs(desc_vecs))
         #reset length
         self.length = min(self.max_length, length)
+
 
     def pad_docs(self, GRAM): #TODO: also pad concepts here**
         #pad all docs (and concepts) to have self.length
@@ -130,6 +136,9 @@ class Batch:
             [xi.extend([[0,0,0,0,0,0]] * (max_concepts_in_batch-len(xi))) for xi in self.parents]
                 #this line extends self.parents in place*
 
+            #extend batched_concept_mask as well
+            [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.batched_concepts_mask]
+
         else: 
             padded_docs = []
             for doc in self.docs:
@@ -140,7 +149,7 @@ class Batch:
 
 
     def to_ret(self):
-        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.hadm_ids), self.code_set,np.array(self.descs)
+        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.batched_concepts_mask), np.array(self.hadm_ids), self.code_set,np.array(self.descs)
     #TODO: EMPTY CONCEPTS LST PASSED IF NOT A THING FOR THAT PARTICULAR MODEL
 
 def pad_desc_vecs(desc_vecs):

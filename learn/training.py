@@ -193,19 +193,20 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, concepts, parents, target, _, code_set, descs = tup
+        data, concepts, parents, target, bcm, _, code_set, descs = tup
         # print(data.shape)
         # print(parents.shape)
         # print(target.shape)
+        # print(concepts.shape)
         # print("LARGE INDICES:", parents[np.where(parents >= 2129)])
         if GRAM:
-            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents))), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm))), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu and GRAM:
-            data = (data[0].cuda(), data[1].cuda(), data[2].cuda())
+            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda())
             target = target.cuda()
         elif gpu:
             data = data.cuda()
@@ -290,7 +291,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
-        data, concepts, parents, target, hadm_ids, _, descs = tup
+        data, concepts, parents, target, bcm, hadm_ids, _, descs = tup
 
         #TODO: DON'T UPDATE W/ GRADIENT:
         if GRAM:
@@ -298,12 +299,20 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
             if parents.shape[1] == 0:
                 parents = np.zeros((parents.shape[0],1,6))
 
-            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True)), Variable(torch.FloatTensor(target))
+            if bcm.shape[1] == 0:
+                pass_in = None
+            else:
+                pass_in = Variable(torch.ByteTensor(bcm), volatile=True)
+
+            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
 
         if gpu and GRAM:
-            data = (data[0].cuda(), data[1].cuda(), data[2].cuda())
+            if pass_in is None:
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in)
+            else:
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda())
             target = target.cuda()
         elif gpu:
             data = data.cuda()
