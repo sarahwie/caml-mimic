@@ -17,6 +17,7 @@ import time
 from constants import *
 from dataproc import extract_wvs
 
+#TODO: should upgrade to Pytorch 0.4.0 and use torch.where
 def where(cond, x_1, x_2):
     cond = cond.float()    
     return (cond * x_1) + ((1-cond) * x_2)
@@ -264,11 +265,10 @@ class ConvAttnPoolPlusGram(BaseModel):
 
             #get mask over text
             if gpu:
-                mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor).cuda(), Variable(torch.ones(concepts.size())).cuda(), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor).cuda()
+                mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor).cuda(), Variable(torch.ones(concepts.size())).cuda(), Variable(torch.zeros(concepts.size())).cuda()).type(torch.ByteTensor)
 
             else:
                 mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor), Variable(torch.ones(concepts.size())), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor)
-
 
             #reshape/expand along embedding dimension
             mask = mask.expand(x.size(1),-1, -1).transpose(0,1) #represents positions of concept embeddings in text
