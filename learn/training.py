@@ -312,11 +312,13 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
             if pass_in is None:
                 data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, True)
             else:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda())
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
+        elif GRAM:
+            data = (data[0], data[1], data[2], pass_in, False)
         model.zero_grad()
 
         if desc_embed:
