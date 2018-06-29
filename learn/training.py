@@ -206,7 +206,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
 
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu and GRAM:
-            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda())
+            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
@@ -310,7 +310,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
         if gpu and GRAM:
             if pass_in is None:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in)
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, True)
             else:
                 data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda())
             target = target.cuda()

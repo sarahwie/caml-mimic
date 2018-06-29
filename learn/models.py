@@ -218,7 +218,7 @@ class ConvAttnPoolPlusGram(BaseModel):
 
     def forward(self, data, target, desc_data=None, get_attention=True):
 
-        x, concepts, parents, batched_concepts_mask = data #unpack input
+        x, concepts, parents, batched_concepts_mask, gpu = data #unpack input
 
         # get embeddings
         x = self.embed(x)
@@ -263,7 +263,13 @@ class ConvAttnPoolPlusGram(BaseModel):
             concept_embeds = c[concept_mask] #**row-stacked**
 
             #get mask over text
-            mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor), Variable(torch.ones(concepts.size())), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor)
+            if gpu:
+                mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor).cuda(), Variable(torch.ones(concepts.size())).cuda(), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor).cuda()
+
+            else:
+                mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor), Variable(torch.ones(concepts.size())), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor)
+
+
             #reshape/expand along embedding dimension
             mask = mask.expand(x.size(1),-1, -1).transpose(0,1) #represents positions of concept embeddings in text
 
