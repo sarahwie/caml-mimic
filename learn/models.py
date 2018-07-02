@@ -265,7 +265,7 @@ class ConvAttnPoolPlusGram(BaseModel):
 
             #get mask over text
             if gpu:
-                mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor).cuda(), Variable(torch.ones(concepts.size())).cuda(), Variable(torch.zeros(concepts.size())).cuda()).type(torch.ByteTensor)
+                mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor).cuda(), Variable(torch.ones(concepts.size())).cuda(), Variable(torch.zeros(concepts.size())).cuda()).type(torch.ByteTensor).cuda()
 
             else:
                 mask = where(concepts > Variable(torch.zeros(concepts.size())).type(torch.LongTensor), Variable(torch.ones(concepts.size())), Variable(torch.zeros(concepts.size()))).type(torch.ByteTensor)
