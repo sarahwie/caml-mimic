@@ -10,6 +10,8 @@ import torch
 from constants import *
 from learn import models
 
+import git
+
 def save_metrics(metrics_hist_all, model_dir):
     with open(model_dir + "/metrics.json", 'w') as metrics_file:
         #concatenate dev, train metrics into one dict
@@ -21,6 +23,13 @@ def save_metrics(metrics_hist_all, model_dir):
 def save_params_dict(params):
     with open(params["model_dir"] + "/params.json", 'w') as params_file:
         json.dump(params, params_file, indent=1)
+
+def save_git_versioning_info(model_dir, info):
+    with open(model_dir + "/git_info.txt", 'w') as f:
+        f.write("Branch: " + info[0] + '\n')
+        f.write("SHA: " + info[1] + '\n')
+        f.write("Provided description: " + info[2] + '\n')
+           
 
 def write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw=None):
     """
@@ -60,6 +69,15 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
     save_metrics(metrics_hist_all, model_dir)
     params['model_dir'] = model_dir
     save_params_dict(params)
+
+    #save model versioning (git) info:
+    repo = git.Repo(search_parent_directories=True)
+    branch = repo.active_branch.name
+    print("branch:", branch)
+    sha = repo.head.object.hexsha
+    print("SHA hash:", sha) 
+    save_git_versioning_info(model_dir, (branch, sha, args.description))
+
 
     if not evaluate:
         #save the model with the best criterion metric

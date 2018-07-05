@@ -30,7 +30,7 @@ def main(args):
     start = time.time()
     args, model, optimizer, params, dicts = init(args)
     epochs_trained = train_epochs(args, model, optimizer, params, dicts)
-    print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS: %f" % (args.model, epochs_trained, time.time() - start))
+    print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS (hours): %f" % (args.model, epochs_trained, ((time.time() - start)/60/60)))
 
 
 def init(args):
@@ -193,24 +193,26 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, concepts, parents, target, bcm, _, code_set, descs = tup
+        data, concepts, parents, target, bcm, dm, _, code_set, descs = tup
         # print(data.shape)
         # print(parents.shape)
         # print(target.shape)
         # print(concepts.shape)
         # print("LARGE INDICES:", parents[np.where(parents >= 2129)])
         if GRAM:
-            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm))), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm)), Variable(torch.LongTensor(dm))), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu and GRAM:
-            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), True)
+            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), data[4].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
+        elif GRAM:
+            data = (data[0], data[1], data[2], data[3], data[4], False)
         optimizer.zero_grad()
 
         if desc_embed:
@@ -291,7 +293,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
-        data, concepts, parents, target, bcm, hadm_ids, _, descs = tup
+        data, concepts, parents, target, bcm, dm, hadm_ids, _, descs = tup
 
         #TODO: DON'T UPDATE W/ GRADIENT:
         if GRAM:
@@ -301,24 +303,29 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
             if bcm.shape[1] == 0:
                 pass_in = None
+
+            #TODO: CHECK
+            if dm.shape[1] == 0:
+                dm = np.zeros((dm.shape[0],5))
+
             else:
                 pass_in = Variable(torch.ByteTensor(bcm), volatile=True)
 
-            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True)), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
 
         if gpu and GRAM:
             if pass_in is None:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, True)
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, data[4].cuda(), True)
             else:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), True)
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), data[4].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
         elif GRAM:
-            data = (data[0], data[1], data[2], pass_in, False)
+            data = (data[0], data[1], data[2], pass_in, data[4], False)
         model.zero_grad()
 
         if desc_embed:
@@ -370,6 +377,7 @@ if __name__ == "__main__":
     parser.add_argument("Y", type=str, help="size of label space")
     parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved", 'conv_attn_plus_GRAM'], help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train"),
+    parser.add_argument("--description", type=str, required=False, default="", dest='description', help='provide a description to save with model')
     parser.add_argument("--concepts-file", type=str, required=False, default=None, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
     #TODO: ADD CAPABILITIES for ICD10
     parser.add_argument("--annotations", type=str, choices=["ICD9", "ICD10", "SNOMED"], required=False, default=None, dest="annotation_type", help="what kind of code format the annotations output from the parser is in")

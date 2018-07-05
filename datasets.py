@@ -18,6 +18,7 @@ class Batch:
     """
     def __init__(self, desc_embed):
         self.docs = []
+        self.docs_masks = []
         self.concepts = []
         self.parents = []
         self.labels = []
@@ -69,9 +70,8 @@ class Batch:
 
             joint_id = row[0] + '_' + row[1]
             #TODO: MULTI-LABEL FOR ONE-POSITION CASE**
-            #TODO: REMOVED "+1" HERE ON MISSING INDICES
             #just a standard dictionary- this ensures that every patient has been mapped
-            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind) if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
+            con = [int(concept2ind[w]) if w in concept2ind else len(concept2ind)+1 if w != 0 else 0 for w in concept_dict[joint_id]] #TODO: CHECK PADDING HERE*
             assert len(con) == len(concept_dict[joint_id])
             assert len(con) == len(text)
 
@@ -82,8 +82,8 @@ class Batch:
             #TODO: GET PARENTS (len 6*)**
             #TODO: WHY ARE THERE CODES WHICH WE HAVE TO EMBED AS UNK IN TRAINING????** see in ConvAttnPoolPlusGram init() in models.py where have extended len(concept_embeddings matrix) by 1!
             parents = [child2parents[ind2concept[child]] if ind2concept[child] in child2parents else [child, rootCode] for child in con if child != 0] #this is the list of parent codes for each concept
-            #convert to indices- TODO: REMOVED "+1" HERE ON MISSING INDICES
-            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind) for it in el] for el in parents]
+            #convert to indices
+            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind)+1 for it in el] for el in parents]
 
             #pad with 0's so each has len. 6 (inc. child itself)
             #TODO: WHAT IS THE ROLE OF THE ROOT CODE HERE-- A 'SHARED' EMBEDDING OF SOME SORT?
@@ -102,6 +102,10 @@ class Batch:
         if len(text) > self.max_length: #TODO: UNDO FOR SH CASE**
             text = text[:self.max_length]
 
+        if GRAM:
+            word_mask = [el for el,c in zip(text,con) if c != 0]
+            self.docs_masks.append(word_mask)
+
         #build instance
         self.docs.append(text)
         self.labels.append(labels_idx)
@@ -113,7 +117,7 @@ class Batch:
         self.length = min(self.max_length, length)
 
 
-    def pad_docs(self, GRAM): #TODO: also pad concepts here**
+    def pad_docs(self, GRAM):
         #pad all docs (and concepts) to have self.length
 
         if GRAM:
@@ -134,10 +138,12 @@ class Batch:
             max_concepts_in_batch = max(len(l) for l in self.parents)
             #TODO: HAVE PADDED HERE AS WELL FOR INC. OF BOTH CHILD AND ROOT CODE**
             [xi.extend([[0,0,0,0,0,0]] * (max_concepts_in_batch-len(xi))) for xi in self.parents]
-                #this line extends self.parents in place*
 
             #extend batched_concept_mask as well
             [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.batched_concepts_mask]
+
+            #pad word concepts mask as well
+            [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.docs_masks]
 
         else: 
             padded_docs = []
@@ -149,7 +155,7 @@ class Batch:
 
 
     def to_ret(self):
-        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.batched_concepts_mask), np.array(self.hadm_ids), self.code_set,np.array(self.descs)
+        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.batched_concepts_mask), np.array(self.docs_masks), np.array(self.hadm_ids), self.code_set, np.array(self.descs)
     #TODO: EMPTY CONCEPTS LST PASSED IF NOT A THING FOR THAT PARTICULAR MODEL
 
 def pad_desc_vecs(desc_vecs):
@@ -212,6 +218,7 @@ def load_vocab_dict(args, vocab_file):
     if args.public_model and args.Y == 'full' and args.version == "mimic3" and args.model == 'conv_attn':
         ind2w = {i:w for i,w in enumerate(sorted(vocab))}
     else:
+        #START FROM ONES
         ind2w = {i+1:w for i,w in enumerate(sorted(vocab))}
     w2ind = {w:i for i,w in ind2w.items()}
     return ind2w, w2ind
@@ -308,6 +315,7 @@ def load_concepts(args):
         with open(args.concept_vocab) as f:
             content = f.readlines()
         codes.update([x.strip() for x in content]) #add in the new values to the set
+    #START FROM ONE
     ind2concept = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
     #print(len(ind2c))
     #print(ind2c)

@@ -38,12 +38,12 @@ class BaseModel(nn.Module):
             print("loading pretrained embeddings...")
             W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
 
-            self.embed = nn.Embedding(W.size()[0], W.size()[1])
+            self.embed = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
             self.embed.weight.data = W.clone()
         else:
             #add 2 to include UNK and PAD
             vocab_size = len(dicts['ind2w'])
-            self.embed = nn.Embedding(vocab_size+2, embed_size)
+            self.embed = nn.Embedding(vocab_size+2, embed_size, padding_idx=0)
 
 
     def _get_loss(self, yhat, target, diffs=None):
@@ -106,7 +106,7 @@ class ConvAttnPool(BaseModel):
         #context vectors for computing attention as in 2.2
                 #TODO: JAMES HAD BIAS=TRUE HERE-- make a difference?
 
-        self.U = nn.Linear(num_filter_maps, Y, bias=False)
+        self.U = nn.Linear(num_filter_maps, Y, bias=True)
         xavier_uniform(self.U.weight)
 
         #final layer: create a matrix to use for the L binary classifiers as in 2.3
@@ -117,7 +117,7 @@ class ConvAttnPool(BaseModel):
         #description module has its own embedding and convolution layers
         if lmbda > 0:
             W = self.embed.weight.data
-            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1])
+            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0) #TODO: padding_idx=0?
             self.desc_embedding.weight.data = W.clone()
 
             self.label_conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=floor(kernel_size/2))
@@ -162,8 +162,9 @@ class ConvAttnPoolPlusGram(BaseModel):
         if code_embed_file:
             print("loading pretrained CODE embeddings...")
             #TODO: UPDATE HERE TO LOAD IN PRETRAINED CODE_EMBEDDINGS FILE
+            #TODO: make sure that p.t embeds have dim. n+2*
             #W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
-            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1])
+            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
             # self.embed.weight.data = W.clone()
             raise Exception("*TODO not completed*")
 
@@ -171,8 +172,8 @@ class ConvAttnPoolPlusGram(BaseModel):
             #TODO: make sure this is what want**
             print("Catch: NOT using pretrained code embeddings!")
             #TODO: FIX OR REMOVE THIS***
-            concepts_size = len(dicts['ind2concept'])+1
-            self.concept_embed = nn.Embedding(concepts_size, embed_size) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
+            concepts_size = len(dicts['ind2concept'])+2
+            self.concept_embed = nn.Embedding(concepts_size, embed_size, padding_idx=0) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
             #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
 
         #TODO: Here, compute attentional similarity between GRAM embedding and word vector as a measure of 'confidence' in extracted concept?
@@ -184,8 +185,10 @@ class ConvAttnPoolPlusGram(BaseModel):
         self.fc2 = nn.Linear(hidden_sim_size, 1) #= Ed's u_a notation
         #TODO: as per James, init these with xavier_uniform (as per Glorot & Bengio 2010)
         xavier_uniform(self.fc1.weight)
-        #xavier_uniform(self.relu.weight) #TODO: not initializing weights for Tanh layer b/c there aren't any lol
         xavier_uniform(self.fc2.weight)
+
+        self.recombine = nn.Linear(2*embed_size, embed_size, bias=True)
+        xavier_uniform(self.recombine.weight)
 
         #rest of network the same
 
@@ -196,7 +199,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         # context vectors for computing attention as in 2.2
             #TODO: JAMES HAD BIAS=TRUE HERE-- make a difference?
 
-        self.U = nn.Linear(num_filter_maps, Y, bias=False)
+        self.U = nn.Linear(num_filter_maps, Y, bias=True)
         xavier_uniform(self.U.weight)
 
         # final layer: create a matrix to use for the L binary classifiers as in 2.3
@@ -207,7 +210,7 @@ class ConvAttnPoolPlusGram(BaseModel):
         # description module has its own embedding and convolution layers
         if lmbda > 0:
             W = self.embed.weight.data
-            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1])
+            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0) #TODO: padding_idx=0?
             self.desc_embedding.weight.data = W.clone()
 
             self.label_conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size,
@@ -219,7 +222,7 @@ class ConvAttnPoolPlusGram(BaseModel):
 
     def forward(self, data, target, desc_data=None, get_attention=True):
 
-        x, concepts, parents, batched_concepts_mask, gpu = data #unpack input
+        x, concepts, parents, batched_concepts_mask, dm, gpu = data #unpack input
 
         # get embeddings
         x = self.embed(x)
@@ -253,15 +256,23 @@ class ConvAttnPoolPlusGram(BaseModel):
 
         # print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
 
+        dm = self.embed(dm)
+        dm = dm.transpose(1, 2)
+
+        #compute linear interpolation-- OPTION ONE
+        concat_mat = torch.cat((c,dm),1) #concat concept and word embeds @ concept posn.'s, input to linear layer:
+        linear_interp = self.recombine(concat_mat.transpose(1,2))
+        linear_interp = linear_interp.transpose(1,2)
+
 #------------------------------------------------------------------- JOIN CONCEPT & WORD MATRICES 
 
         #if this isn't a test case with no extracted concepts, proceed
         if batched_concepts_mask is not None:
             #TODO: here is where we can add a learnable weighting function for the two embeddings
 
-            concept_mask = batched_concepts_mask.expand(c.size(1),-1, -1).transpose(0,1) 
+            concept_mask = batched_concepts_mask.expand(linear_interp.size(1),-1, -1).transpose(0,1) 
             #only pull those concept embeddings which represent the actual positions of the concepts
-            concept_embeds = c[concept_mask] #**row-stacked**
+            concept_embeds = linear_interp[concept_mask] #**row-stacked**
 
             #get mask over text
             if gpu:
@@ -274,10 +285,10 @@ class ConvAttnPoolPlusGram(BaseModel):
             mask = mask.expand(x.size(1),-1, -1).transpose(0,1) #represents positions of concept embeddings in text
 
             #should have same shape as concept_embeds
-            assert x[mask].size() == c[concept_mask].size()
+            assert x[mask].size() == linear_interp[concept_mask].size()
 
             #do the sub! woohoo: it works :)
-            x[mask] = c[concept_mask]
+            x[mask] = linear_interp[concept_mask]
 
         #TODO: CONSIDER OVERLAPPING CONCEPTS- HERE HAVE MODIFIED TO ONLY HAVE ONE CONCEPT PER WORD-EMBEDDING-- this is not realistic**
         #TODO: consider to perform dropout earlier on only word vectors, or remove altogether instead of having here.
@@ -319,16 +330,16 @@ class ConvAttnPoolPlusConceptEmbeds(BaseModel):
             print("loading pretrained CODE embeddings...")
             #TODO: UPDATE HERE TO LOAD IN PRETRAINED CODE_EMBEDDINGS FILE
             #W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
-            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1])
+            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
             # self.embed.weight.data = W.clone()
             raise Exception("*TODO not completed*")
 
         else:
             #TODO: make sure this is what want**
             print("Catch: NOT using pretrained code embeddings!")
-            concepts_size = len(dicts['ind2concept'])+1
+            concepts_size = len(dicts['ind2concept'])+2
             print("CONCEPTS SIZE:", concepts_size)
-            self.concept_embed = nn.Embedding(concepts_size, embed_size) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
+            self.concept_embed = nn.Embedding(concepts_size, embed_size, padding_idx=0) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
             #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
 
         #same network as James here
@@ -340,7 +351,7 @@ class ConvAttnPoolPlusConceptEmbeds(BaseModel):
         # context vectors for computing attention as in 2.2
                 #TODO: JAMES HAD BIAS=TRUE HERE-- make a difference?
 
-        self.U = nn.Linear(num_filter_maps, Y, bias=False)
+        self.U = nn.Linear(num_filter_maps, Y, bias=True)
         xavier_uniform(self.U.weight)
 
         # final layer: create a matrix to use for the L binary classifiers as in 2.3
@@ -351,7 +362,7 @@ class ConvAttnPoolPlusConceptEmbeds(BaseModel):
         # description module has its own embedding and convolution layers
         if lmbda > 0:
             W = self.embed.weight.data
-            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1])
+            self.desc_embedding = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0) #TODO: padding_idx=0?
             self.desc_embedding.weight.data = W.clone()
 
             self.label_conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size,
