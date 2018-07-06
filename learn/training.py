@@ -306,7 +306,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
             #TODO: CHECK
             if dm.shape[1] == 0:
-                dm = np.zeros((dm.shape[0],5))
+                dm = np.zeros((dm.shape[0],1))
 
             else:
                 pass_in = Variable(torch.ByteTensor(bcm), volatile=True)
