@@ -271,11 +271,10 @@ def load_lookups(args, desc_embed=False):
             elif key[0] in w2ind:
                 new_dict.add((int(w2ind[key[0]]), len(concept2ind)+1))
             elif key[1] in concept2ind:
-                new_dict.add(len(w2ind)+1, int(concept2ind[key[1]]))
+                new_dict.add((len(w2ind)+1, int(concept2ind[key[1]])))
             else:
                 #both unk
-                new_dict.add(len(w2ind)+1, len(concept2ind)+1)
-
+                new_dict.add((len(w2ind)+1, len(concept2ind)+1))
 
         #enumerate again
         concept_word = {c:i for i,c in enumerate(sorted(new_dict), 1)}

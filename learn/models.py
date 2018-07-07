@@ -304,7 +304,6 @@ class ConvAttnPoolPlusGram(BaseModel):
 
             elif recombine_method == 'full_replace':
                 linear_interp = c
-                print("C SHAPE:", c.shape)
 
 #------------------------------------------------------------------- JOIN CONCEPT & WORD MATRICES 
 
