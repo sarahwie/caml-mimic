@@ -534,6 +534,8 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 
 def compute_pairs_vocab_dict(filename, concepts_file):
 
+	#get 4513 unique from the full MIMIC3 train_full file, 3466 once subset to >1 occurrence.
+
 	concept_dict = pickle.load(open(concepts_file, 'rb'))
 
 	concept_pairs = {}
@@ -541,7 +543,7 @@ def compute_pairs_vocab_dict(filename, concepts_file):
 		r = csv.reader(infile)
 		#header
 		next(r)
-		for row in r:
+		for row in tqdm(r):
 			text = row[2]
 			joint_id = row[0] + '_' + row[1]
 			words = text.strip().split()
@@ -554,8 +556,8 @@ def compute_pairs_vocab_dict(filename, concepts_file):
 				con = con[:MAX_LENGTH]
 
 			#truncate long documents
-			if len(text) > MAX_LENGTH: #TODO: UNDO FOR SH CASE**
-				text = text[:MAX_LENGTH]
+			if len(words) > MAX_LENGTH: #TODO: UNDO FOR SH CASE**
+				words = words[:MAX_LENGTH]
 
 			assert len(words) == len(con)
 
@@ -575,7 +577,6 @@ def compute_pairs_vocab_dict(filename, concepts_file):
 
 	#create dictionary
 	concept_word_dict = {c:i for i,c in enumerate(sorted(concept_pairs_vocab), 1)}
-	print(concept_word_dict)
 
 	#write out
 	pickle.dump(concept_word_dict, open('/Users/SWiegreffe/Desktop/mimicdata/new_files/concept_word_dict.p','wb'))

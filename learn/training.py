@@ -308,15 +308,15 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
             if bcm.shape[1] == 0:
                 pass_in = None
+                
+            else:
+                pass_in = Variable(torch.ByteTensor(bcm), volatile=True)
 
             if dm.shape[1] == 0:
                 dm = np.zeros((dm.shape[0],1))
 
             if word_concept_mask.shape[1] == 0:
                 word_concept_mask = np.zeros((word_concept_mask.shape[0], 1))
-
-            else:
-                pass_in = Variable(torch.ByteTensor(bcm), volatile=True)
 
             data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True), Variable(torch.LongTensor(word_concept_mask), volatile=True)), Variable(torch.FloatTensor(target))
         else:
