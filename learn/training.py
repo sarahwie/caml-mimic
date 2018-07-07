@@ -81,7 +81,7 @@ def train_epochs(args, model, optimizer, params, dicts):
 
         metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path, args.concepts_file,
                                                   args.version, test_only, dicts, model_dir, 
-                                                  args.samples, args.gpu, args.quiet, args.model)
+                                                  args.samples, args.gpu, args.quiet, args.model, args.recombine_option)
         for name in metrics_all[0].keys():
             metrics_hist[name].append(metrics_all[0][name])
         for name in metrics_all[1].keys():
@@ -119,12 +119,12 @@ def early_stop(metrics_hist, criterion, patience):
 
 
 def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, concepts_file, version, testing, dicts, model_dir,
-              samples, gpu, quiet, model_name):
+              samples, gpu, quiet, model_name, recombine_option):
     """
         Wrapper to do a training epoch and test on dev
     """
     if not testing:
-        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name)
+        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name, recombine_option)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -153,12 +153,12 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
 
     #test on dev
     metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
-                   testing, model_name, concepts_file)
+                   testing, model_name, concepts_file, recombine_option)
 
     if testing or epoch == n_epochs - 1:
         print("\nevaluating on test")
         metrics_te = test(model, Y, epoch, data_path, "test", gpu, version, unseen_code_inds, dicts, samples, 
-                          model_dir, True, model_name, concepts_file)
+                          model_dir, True, model_name, concepts_file, recombine_option)
     else:
         metrics_te = defaultdict(float)
         fpr_te = defaultdict(lambda: [])
@@ -168,7 +168,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
     return metrics_all
 
 
-def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name):
+def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name, recombine_option):
     """
         Training loop.
         output: losses for each example for this iteration
@@ -193,26 +193,26 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, concepts, parents, target, bcm, dm, _, code_set, descs = tup
+        data, concepts, parents, target, bcm, dm, word_concept_mask, _, code_set, descs = tup
         # print(data.shape)
         # print(parents.shape)
         # print(target.shape)
         # print(concepts.shape)
         # print("LARGE INDICES:", parents[np.where(parents >= 2129)])
         if GRAM:
-            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm)), Variable(torch.LongTensor(dm))), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm)), Variable(torch.LongTensor(dm)), Variable(torch.LongTensor(word_concept_mask))), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu and GRAM:
-            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), data[4].cuda(), True)
+            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), data[4].cuda(), data[5].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
         elif GRAM:
-            data = (data[0], data[1], data[2], data[3], data[4], False)
+            data = (data[0], data[1], data[2], data[3], data[4], data[5], False)
         optimizer.zero_grad()
 
         if desc_embed:
@@ -221,7 +221,10 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
             desc_data = None
 
         #call forward
-        output, loss, _ = model(data, target, desc_data=desc_data)
+        if GRAM:
+            output, loss, _ = model(data, target, recombine_option, desc_data=desc_data)
+        else:
+            output, loss, _ = model(data, target, desc_data=desc_data)
 
         loss.backward() #backprop/compute gradients
         optimizer.step()    #update weights
@@ -256,7 +259,7 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
 
 #TODO: UPDATE THIS METHOD**
 #TODO: SUB IN DEV FILE CONCEPTS-- THAT PASSED IN IS TRAIN
-def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name, concepts_file):
+def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name, concepts_file, recombine_option):
     """
         Testing loop.
         Returns metrics
@@ -293,39 +296,43 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
-        data, concepts, parents, target, bcm, dm, hadm_ids, _, descs = tup
+        data, concepts, parents, target, bcm, dm, word_concept_mask, hadm_ids, _, descs = tup
 
         #TODO: DON'T UPDATE W/ GRADIENT:
         if GRAM:
-            #**TODO: how to ignore the GRAM part of model for test examples w/ no concepts?**
+            #**TODO: how to ignore the GRAM part of model for test examples w/ no concepts?** there must be a better way than 0-padding
+
+            #these are just placeholders for tensor & variable wrapping w/out causing any errors-- once in the method we don't actually use them
             if parents.shape[1] == 0:
                 parents = np.zeros((parents.shape[0],1,6))
 
             if bcm.shape[1] == 0:
                 pass_in = None
 
-            #TODO: CHECK
             if dm.shape[1] == 0:
                 dm = np.zeros((dm.shape[0],1))
+
+            if word_concept_mask.shape[1] == 0:
+                word_concept_mask = np.zeros((word_concept_mask.shape[0], 1))
 
             else:
                 pass_in = Variable(torch.ByteTensor(bcm), volatile=True)
 
-            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True)), Variable(torch.FloatTensor(target))
+            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True), Variable(torch.LongTensor(word_concept_mask), volatile=True)), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
 
         if gpu and GRAM:
             if pass_in is None:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, data[4].cuda(), True)
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, data[4].cuda(), data[5].cuda(), True)
             else:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), data[4].cuda(), True)
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), data[4].cuda(), data[5].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
         elif GRAM:
-            data = (data[0], data[1], data[2], pass_in, data[4], False)
+            data = (data[0], data[1], data[2], pass_in, data[4], data[5], False)
         model.zero_grad()
 
         if desc_embed:
@@ -335,7 +342,10 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
         #get an attention sample for 2% of batches
         get_attn = samples and (np.random.rand() < 0.02 or (fold == 'test' and testing))
-        output, loss, alpha = model(data, target, desc_data=desc_data, get_attention=get_attn)
+        if GRAM:
+            output, loss, alpha = model(data, target, recombine_option, desc_data=desc_data, get_attention=get_attn)
+        else:
+            output, loss, alpha = model(data, target, desc_data=desc_data, get_attention=get_attn)
 
         output = output.data.cpu().numpy()
         losses.append(loss.data[0])
@@ -385,6 +395,10 @@ if __name__ == "__main__":
                         help="path to a file holding pre-trained embeddings")
     parser.add_argument("--parents-file", type=str, required=False, dest="parents_file",
                         help="path to a file holding the dictionary mapping children concepts to their parents")
+    parser.add_argument("--recombination-option", type=str, choices=['full_replace','linear_layer','weight_matrix'], required=False, default=None, dest="recombine_option",
+                        help="method for combining concept and word embeddings in GRAM-augmented model")
+    parser.add_argument("--concept-word-dict", type=str, required=False, dest="concept_word_dict",
+                        help="path to a file holding the dictionary mapping concept-word pairs in the training set to an index")
     parser.add_argument("--concept-vocab", type=str, required=False, dest="concept_vocab",
                         help="path to a file holding vocab list for discretizing codes and their parents")
     parser.add_argument("--concept-embed-file", type=str, required=False, dest="code_embed_file",

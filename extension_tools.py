@@ -532,6 +532,54 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 	print(len(old_codes))
 	print("Number of parent + child codes:", len(codes))
 
+def compute_pairs_vocab_dict(filename, concepts_file):
+
+	concept_dict = pickle.load(open(concepts_file, 'rb'))
+
+	concept_pairs = {}
+	with open(filename, 'r') as infile:
+		r = csv.reader(infile)
+		#header
+		next(r)
+		for row in r:
+			text = row[2]
+			joint_id = row[0] + '_' + row[1]
+			words = text.strip().split()
+
+			#cut to max length
+			con = concept_dict[joint_id]
+
+			#truncate concepts
+			if len(con) > MAX_LENGTH: #TODO: UNDO FOR SH CASE**
+				con = con[:MAX_LENGTH]
+
+			#truncate long documents
+			if len(text) > MAX_LENGTH: #TODO: UNDO FOR SH CASE**
+				text = text[:MAX_LENGTH]
+
+			assert len(words) == len(con)
+
+			#add pairs and counts
+			for w, c in zip(words, con):
+				if (w,c) in concept_pairs and w != 0 and c!=0:
+					concept_pairs[(w,c)] += 1
+				elif w != 0 and c != 0:
+					concept_pairs[(w,c)] = 1
+
+	print("Length concept-word pairs before reduction:", len(concept_pairs))
+
+	#subset down concept pairs to only those with a >1 occurrence:
+	#TODO: measuring based on total concept occurrences, not distinct document occs*
+	concept_pairs_vocab = set([k for k, v in concept_pairs.items() if v > 1])
+	print("Length after:", len(concept_pairs_vocab))
+
+	#create dictionary
+	concept_word_dict = {c:i for i,c in enumerate(sorted(concept_pairs_vocab), 1)}
+	print(concept_word_dict)
+
+	#write out
+	pickle.dump(concept_word_dict, open('/Users/SWiegreffe/Desktop/mimicdata/new_files/concept_word_dict.p','wb'))
+
 if __name__ == '__main__':
 	#map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
 	#map_snomed_to_icd()
@@ -541,8 +589,9 @@ if __name__ == '__main__':
 	#get_concept_text_alignment()
 	#get_parent_trees('train')
 
-	remerge_dictionary()
-	update_vocab('/data/mimicdata/mimic3/patient_notes/code_parents.p', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/', load=True)
+	#remerge_dictionary()
+	#update_vocab('/data/mimicdata/mimic3/patient_notes/code_parents.p', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/', load=True)
 
+	compute_pairs_vocab_dict(filename='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_full_SUBSET.csv', concepts_file='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_patient_concepts_matrix.p')
 
 

@@ -19,6 +19,7 @@ class Batch:
     def __init__(self, desc_embed):
         self.docs = []
         self.docs_masks = []
+        self.word_concept_mask = []
         self.concepts = []
         self.parents = []
         self.labels = []
@@ -30,7 +31,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, num_labels, GRAM):
+    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -106,6 +107,12 @@ class Batch:
             word_mask = [el for el,c in zip(text,con) if c != 0]
             self.docs_masks.append(word_mask)
 
+            children_concepts = [child for child in con if child != 0] #this is the list of children concept codes
+
+            weights_matrix_mask = [concept_word[el] if el in concept_word else len(concept_word)+1 for el in zip(word_mask, children_concepts)]
+
+            self.word_concept_mask.append(weights_matrix_mask)
+
         #build instance
         self.docs.append(text)
         self.labels.append(labels_idx)
@@ -145,6 +152,9 @@ class Batch:
             #pad word concepts mask as well
             [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.docs_masks]
 
+            #and word-concept indices mask as well
+            [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.word_concept_mask]
+
         else: 
             padded_docs = []
             for doc in self.docs:
@@ -153,9 +163,8 @@ class Batch:
                 padded_docs.append(doc)
             self.docs = padded_docs
 
-
     def to_ret(self):
-        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.batched_concepts_mask), np.array(self.docs_masks), np.array(self.hadm_ids), self.code_set, np.array(self.descs)
+        return np.array(self.docs), np.array(self.concepts), np.array(self.parents), np.array(self.labels), np.array(self.batched_concepts_mask), np.array(self.docs_masks), np.array(self.word_concept_mask), np.array(self.hadm_ids), self.code_set, np.array(self.descs)
     #TODO: EMPTY CONCEPTS LST PASSED IF NOT A THING FOR THAT PARTICULAR MODEL
 
 def pad_desc_vecs(desc_vecs):
@@ -182,7 +191,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
     """
 
     #TODO: HERE, yield a concepts matrix as well with the same type of lookups**
-    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept, child2parents = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept'], dicts['child2parents']
+    ind2w, w2ind, ind2c, c2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['concept2ind'], dicts['ind2concept'], dicts['child2parents'], dicts['concept_word']
 
     if GRAM:
         #load concepts matrix
@@ -202,7 +211,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, num_labels, GRAM)
+            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM)
         cur_inst.pad_docs(GRAM)
         yield cur_inst.to_ret()
 
@@ -252,10 +261,21 @@ def load_lookups(args, desc_embed=False):
         ind2concept = load_concepts(args)
         concept2ind = {c:i for i,c in ind2concept.items()} 
         child2parents = pickle.load(open(args.parents_file, 'rb'))
+        concept_word = pickle.load(open(args.concept_word_dict, 'rb'))
+
+        #remap based on concept2ind and w2ind:
+        new_dict = set()
+        for key, value in concept_word.items():
+            new_dict.add((w2ind[key[0]], concept2ind[key[1]]))
+
+        #enumerate again
+        concept_word = {c:i for i,c in enumerate(sorted(new_dict), 1)}
+
     else:
         ind2concept = None
         concept2ind = None
         child2parents = None
+        concept_word = None
 
     #get description one-hot vector lookup
     if desc_embed:
@@ -263,7 +283,7 @@ def load_lookups(args, desc_embed=False):
     else:
         dv_dict = None
 
-    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict, 'ind2concept': ind2concept, 'concept2ind':concept2ind, 'child2parents':child2parents}
+    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict, 'ind2concept': ind2concept, 'concept2ind':concept2ind, 'child2parents':child2parents, 'concept_word':concept_word}
     return dicts
 
 def load_full_codes(train_path, version='mimic3'):
@@ -311,10 +331,9 @@ def load_full_codes(train_path, version='mimic3'):
 def load_concepts(args):
 
     codes = set()
-    for split in ['train', 'dev', 'test']:
-        with open(args.concept_vocab) as f:
-            content = f.readlines()
-        codes.update([x.strip() for x in content]) #add in the new values to the set
+    with open(args.concept_vocab) as f:
+        content = f.readlines()
+    codes.update([x.strip() for x in content]) #add in the new values to the set
     #START FROM ONE
     ind2concept = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
     #print(len(ind2c))

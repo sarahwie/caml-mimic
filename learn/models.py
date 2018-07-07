@@ -155,9 +155,10 @@ class ConvAttnPool(BaseModel):
         return yhat, loss, alpha
 
 class ConvAttnPoolPlusGram(BaseModel):
-    def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, hidden_sim_size=20, embed_size=100, dropout=0.5):
+    def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, recombine_method, hidden_sim_size=20, embed_size=100, dropout=0.5):
         super(ConvAttnPoolPlusGram, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
+        self.embed_size = embed_size
         #make embedding layer
         if code_embed_file:
             print("loading pretrained CODE embeddings...")
@@ -187,8 +188,20 @@ class ConvAttnPoolPlusGram(BaseModel):
         xavier_uniform(self.fc1.weight)
         xavier_uniform(self.fc2.weight)
 
-        self.recombine = nn.Linear(2*embed_size, embed_size, bias=True)
-        xavier_uniform(self.recombine.weight)
+        if recombine_method == 'linear_layer':
+            self.recombine = nn.Linear(2*embed_size, embed_size, bias=True)
+            xavier_uniform(self.recombine.weight)
+
+        elif recombine_method == 'weight_matrix':
+            self.SM = nn.Softmax(dim=2)
+            self.recombine = nn.Embedding(len(dicts['concept_word'])+2, 2, padding_idx=0)
+            #xavier_uniform(self.recombine.weight) #TODO: not initializing with this b/c destroys the 0's embedding in pad position/not necessary for embeds (?)
+
+        elif recombine_method == 'full_replace':
+            pass
+
+        else:
+            raise Exception("Argument Error! Recombination of concept and word embeddings")
 
         #rest of network the same
 
@@ -220,54 +233,81 @@ class ConvAttnPoolPlusGram(BaseModel):
             self.label_fc1 = nn.Linear(num_filter_maps, num_filter_maps)
             xavier_uniform(self.label_fc1.weight)
 
-    def forward(self, data, target, desc_data=None, get_attention=True):
+    def forward(self, data, target, recombine_method, desc_data=None, get_attention=True):
 
-        x, concepts, parents, batched_concepts_mask, dm, gpu = data #unpack input
+        x, concepts, parents, batched_concepts_mask, dm, word_concept_mask, gpu = data #unpack input
 
         # get embeddings
         x = self.embed(x)
         x = x.transpose(1, 2)
 
-        # pull parent codes from expanded codeset & embed as 3D matrix
-        
-        p = self.concept_embed(parents.view(-1, parents.size(2)))
+        #if this isn't a test case with no extracted concepts, proceed
+        if batched_concepts_mask is not None:
 
-        #reshape
-        p = p.view(parents.size(0), parents.size(1), parents.size(2), -1)
-        p = p.transpose(1, 3)
+            # pull parent codes from expanded codeset & embed as 3D matrix
+            
+            p = self.concept_embed(parents.view(-1, parents.size(2)))
 
-        children = p[:, :, 0:1, :].expand(-1,-1,6,-1) #these are the children embeddings
-        
-        #TODO: CONCAT IN CHILD, ANCESTOR ORDER-- done**
-        inpt = torch.cat((children, p),1)
-        inpt = inpt.transpose(1,3)
+            #reshape
+            p = p.view(parents.size(0), parents.size(1), parents.size(2), -1)
+            p = p.transpose(1, 3)
+
+            children = p[:, :, 0:1, :].expand(-1,-1,6,-1) #these are the children embeddings
+            
+            #TODO: CONCAT IN CHILD, ANCESTOR ORDER-- done**
+            inpt = torch.cat((children, p),1)
+            inpt = inpt.transpose(1,3)
 
 #------------------------------------------------------------------ LEARN CONCEPT EMBEDDINGS
 
-        #reshape input matrix for each codepair
-        out = self.fc2(self.relu(self.fc1(inpt))) #out becomes our similarity score, softmax across the 5 dimensions
-        # print("Attention Comp. Output:", out.size())
+            #reshape input matrix for each codepair
+            out = self.fc2(self.relu(self.fc1(inpt))) #out becomes our similarity score, softmax across the 5 dimensions
+            # print("Attention Comp. Output:", out.size())
 
-        #now use attn. to construct inpt embeddings--
-        alpha = F.softmax(out, dim=2) #across all 6 scores for a set and its parents**
+            #now use attn. to construct inpt embeddings--
+            alpha = F.softmax(out, dim=2) #across all 6 scores for a set and its parents**
 
-        #Now recombine to produce embedding matrices:
-        c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze(2).transpose(1,2)
+            #Now recombine to produce embedding matrices:
+            c = alpha.transpose(2,3).matmul(p.transpose(1,3)).squeeze(2).transpose(1,2)
 
-        # print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
+            # print(c.size()) #matches old concept embedding shape (except only over concepts and not whole input sentence length)
 
-        dm = self.embed(dm)
-        dm = dm.transpose(1, 2)
+            dm = self.embed(dm)
+            dm = dm.transpose(1, 2)
 
-        #compute linear interpolation-- OPTION ONE
-        concat_mat = torch.cat((c,dm),1) #concat concept and word embeds @ concept posn.'s, input to linear layer:
-        linear_interp = self.recombine(concat_mat.transpose(1,2))
-        linear_interp = linear_interp.transpose(1,2)
+            #compute linear interpolation
+            if recombine_method == 'linear_layer':
+                concat_mat = torch.cat((c,dm),1) #concat concept and word embeds @ concept posn.'s, input to linear layer:
+                linear_interp = self.recombine(concat_mat.transpose(1,2))
+                linear_interp = linear_interp.transpose(1,2)
+
+            elif recombine_method == 'weight_matrix':
+                concat_mat = torch.cat((c,dm),1)
+
+                # print("Concat Mat. shape:", concat_mat.shape)
+                # print("WCM:", word_concept_mask.shape)
+
+                #we softmax this so that it can be a linear layer
+                lines = self.SM(self.recombine(word_concept_mask))
+                # print("Lines:", lines.shape)
+                weighting = torch.cat((lines[:,:,0:1].expand(-1,-1,self.embed_size),lines[:,:,1:2].expand(-1,-1,self.embed_size)),2).transpose(1,2)
+                # print("Weighting:", weighting.shape)
+                assert weighting.shape == concat_mat.shape
+
+                #do the element-wise multiplication based on scalar factor
+                linear_interp = weighting * concat_mat
+
+                #recombine
+                linear_interp = linear_interp[:,0:self.embed_size,] + linear_interp[:,self.embed_size:self.embed_size*2,:]
+
+                #TODO: there must be an easier way to do this whole operation....
+
+            elif recombine_method == 'full_replace':
+                linear_interp = c
+                print("C SHAPE:", c.shape)
 
 #------------------------------------------------------------------- JOIN CONCEPT & WORD MATRICES 
 
-        #if this isn't a test case with no extracted concepts, proceed
-        if batched_concepts_mask is not None:
             #TODO: here is where we can add a learnable weighting function for the two embeddings
 
             concept_mask = batched_concepts_mask.expand(linear_interp.size(1),-1, -1).transpose(0,1) 
