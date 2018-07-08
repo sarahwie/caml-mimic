@@ -581,6 +581,9 @@ def compute_pairs_vocab_dict(filename, concepts_file):
 	#write out
 	pickle.dump(concept_word_dict, open('/Users/SWiegreffe/Desktop/mimicdata/new_files/concept_word_dict.p','wb'))
 
+def create_concept_embeddings(inpt_file):
+	
+
 if __name__ == '__main__':
 	#map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
 	#map_snomed_to_icd()

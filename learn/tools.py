@@ -49,16 +49,24 @@ def pick_model(args, dicts):
         #TODO: ADD CONVERSION FOR ICD9 HERE
 
     if args.test_model:
+
         sd = torch.load(args.test_model)
+
+        assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
+
         model.load_state_dict(sd)
+
+
     if args.gpu:
         model.cuda()
+
     return model
 
 def make_param_dict(args):
     """
         Make a list of parameters to save for future reference
     """
+    #TODO: update this**
     param_vals = [args.Y, args.filter_size, args.dropout, args.num_filter_maps, args.rnn_dim, args.cell_type, args.rnn_layers, 
                   args.lmbda, args.command, args.weight_decay, args.version, args.data_path, args.vocab, args.embed_file, args.lr]
     param_names = ["Y", "filter_size", "dropout", "num_filter_maps", "rnn_dim", "cell_type", "rnn_layers", "lmbda", "command",

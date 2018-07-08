@@ -82,9 +82,12 @@ class Batch:
 
             #TODO: GET PARENTS (len 6*)**
             #TODO: WHY ARE THERE CODES WHICH WE HAVE TO EMBED AS UNK IN TRAINING????** see in ConvAttnPoolPlusGram init() in models.py where have extended len(concept_embeddings matrix) by 1!
-            parents = [child2parents[ind2concept[child]] if ind2concept[child] in child2parents else [child, rootCode] for child in con if child != 0] #this is the list of parent codes for each concept
+            parents = [child2parents[w] if w in child2parents else [w, rootCode] for w in concept_dict[joint_id] if w != 0] #this is the list of parent codes for each concept
+            #NOTE: the above: we want to do this regardless of whether or not we have an index of that child in our training set-constructed vocab, so that we can still learn the embeds @ test time over the parents
             #convert to indices
-            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind)+1 for it in el] for el in parents]
+            parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind)+1 for it in el] for el in parents] 
+            #now, we embed the parents based on whether or not they existed in our model**
+            #TODO: check the 3 above dicts: con, parents, and parent_inx**
 
             #pad with 0's so each has len. 6 (inc. child itself)
             #TODO: WHAT IS THE ROLE OF THE ROOT CODE HERE-- A 'SHARED' EMBEDDING OF SOME SORT?
@@ -343,7 +346,7 @@ def load_concepts(args):
         content = f.readlines()
     codes.update([x.strip() for x in content]) #add in the new values to the set
     #START FROM ONE
-    ind2concept = defaultdict(str, {i:c for i,c in enumerate(sorted(codes), 1)})
+    ind2concept = {i:c for i,c in enumerate(sorted(codes), 1)}
     #print(len(ind2c))
     #print(ind2c)
     return ind2concept
