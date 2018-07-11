@@ -23,7 +23,7 @@ def gensim_to_embeddings(wv_file, vocab_file, Y, outfile=None):
             line = line.strip()
             if line != '':
                 vocab.add(line)
-    ind2w = {i:w for i,w in enumerate(sorted(vocab))}
+    ind2w = {i+1:w for i,w in enumerate(sorted(vocab))}
 
     W, words = build_matrix(ind2w, wv)
 
@@ -45,18 +45,13 @@ def build_matrix(ind2w, wv):
     for idx, word in tqdm(ind2w.items()):
         if idx >= W.shape[0]:
             break
-        for i in range(len(wv.index2word)):
-            if word == wv.index2word[i]:
-                W[idx][:] = wv.word_vec(wv.index2word[i])
-                break
+        W[idx][:] = wv.word_vec(word)
         words.append(word)
     return W, words
 
 def save_embeddings(W, words, outfile):
     with open(outfile, 'w') as o:
-        #write pad token
-        pad_line = PAD_CHAR + " " + " ".join(["0" for i in range(EMBEDDING_SIZE)])
-        o.write(pad_line + "\n")
+        #pad token already included
         for i in range(len(words)):
             line = [words[i]]
             line.extend([str(d) for d in W[i]])
@@ -65,17 +60,21 @@ def save_embeddings(W, words, outfile):
 def load_embeddings(embed_file):
     #also normalizes the embeddings
     W = []
+    vocab = []
     with open(embed_file) as ef:
         for line in ef:
             line = line.rstrip().split()
             vec = np.array(line[1:]).astype(np.float)
             vec = vec / (np.linalg.norm(vec) + 1e-6)
             W.append(vec)
+            vocab.append(line[0])
         #UNK embedding, gaussian randomly initialized 
         print("adding unk embedding")
         vec = np.random.randn(len(W[-1]))
         vec = vec / (np.linalg.norm(vec) + 1e-6)
         W.append(vec)
+    vocab = vocab[1:] #we don't care about pad token
     W = np.array(W)
-    return W
+    w2ind = {k:i for i,k in enumerate(vocab,1)}
+    return W, w2ind
 

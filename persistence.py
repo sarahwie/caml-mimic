@@ -86,7 +86,8 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
                 #save state dict
                 sd = model.cpu().state_dict()
 
-                assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
+                if args.model == 'conv_attn_plus_GRAM':
+                    assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
 
                 torch.save(sd, model_dir + "/model_best_%s.pth" % criterion)
                 if args.gpu:

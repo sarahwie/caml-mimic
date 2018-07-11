@@ -36,7 +36,10 @@ class BaseModel(nn.Module):
         #make embedding layer
         if embed_file:
             print("loading pretrained embeddings...")
-            W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
+            el, ind = extract_wvs.load_embeddings(embed_file)
+            assert ind == dicts['w2ind'] #assert that the index of the pretrained embeddings file aligns *exactly* with that used to embed the text
+
+            W = torch.Tensor(el)
 
             self.embed = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
             self.embed.weight.data = W.clone()
