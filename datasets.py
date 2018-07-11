@@ -291,7 +291,7 @@ def load_lookups(args, desc_embed=False):
 
     #get description one-hot vector lookup
     if desc_embed:
-        dv_dict = load_description_vectors(args.Y, version=args.version)
+        dv_dict = load_description_vectors(args.description_dir, version=args.version)
     else:
         dv_dict = None
 
@@ -406,14 +406,14 @@ def load_code_descriptions(version='mimic3'):
                     desc_dict[code] = ' '.join(row[1:])
     return desc_dict
 
-def load_description_vectors(Y, version='mimic3'):
+def load_description_vectors(description_dir, version='mimic3'):
     #load description one-hot vectors from file
     dv_dict = {}
     if version == 'mimic2':
         data_dir = MIMIC_2_DIR
     else:
         data_dir = MIMIC_3_DIR
-    with open("%s/description_vectors.vocab" % (data_dir), 'r') as vfile:
+    with open(description_dir, 'r') as vfile:
         r = csv.reader(vfile, delimiter=" ")
         #header
         next(r)

@@ -403,6 +403,8 @@ if __name__ == "__main__":
                         help="path to a file holding vocab list for discretizing codes and their parents")
     parser.add_argument("--concept-embed-file", type=str, required=False, dest="code_embed_file",
                         help="path to a file holding pre-trained CODE embeddings")
+    parser.add_argument("--description_dir", type=str, required=False, dest="description_dir",
+                        help="path to a file holding index-mapped code descriptions")
     parser.add_argument("--cell-type", type=str, choices=["lstm", "gru"], help="what kind of RNN to use (default: GRU)", dest='cell_type',
                         default='gru')
     parser.add_argument("--rnn-dim", type=int, required=False, dest="rnn_dim", default=128,

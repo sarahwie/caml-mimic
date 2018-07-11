@@ -29,6 +29,8 @@ def pick_model(args, dicts):
         model = models.VanillaConv(Y, args.embed_file, filter_size, args.num_filter_maps, args.gpu, dicts, args.embed_size, args.dropout)
     elif args.model == "conv_attn":
         filter_size = int(args.filter_size)
+        if args.lmbda is not None:
+            assert args.description_dir is not None
         model = models.ConvAttnPool(Y, args.embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts,
                                     embed_size=args.embed_size, dropout=args.dropout)
     elif args.model == "conv_attn_plus_GRAM":
@@ -38,6 +40,8 @@ def pick_model(args, dicts):
         assert args.recombine_option is not None #make sure have specified how to construct the embeddings
         if args.recombine_option == 'weight_matrix':
             assert args.concept_word_dict is not None
+        if args.description_dir is None:
+            print("YOU DIDN'T SPECIFY A PRETRAINED CODE EMBEDDINGS FILE!")
         #TODO: add more asserts here
         model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.code_embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts, args.recombine_option,
                                     embed_size=args.embed_size, hidden_sim_size=args.hidden_sim_size, dropout=args.dropout)
@@ -52,7 +56,8 @@ def pick_model(args, dicts):
 
         sd = torch.load(args.test_model)
 
-        assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
+        if args.model == "conv_attn_plus_GRAM":
+            assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
 
         model.load_state_dict(sd)
 
