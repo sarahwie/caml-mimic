@@ -401,7 +401,7 @@ if __name__ == "__main__":
                         help="path to a file holding the dictionary mapping concept-word pairs in the training set to an index")
     parser.add_argument("--concept-vocab", type=str, required=False, dest="concept_vocab",
                         help="path to a file holding vocab list for discretizing codes and their parents")
-    parser.add_argument("--concept-embed-file", type=str, required=False, dest="code_embed_file",
+    parser.add_argument("--concept-embed-file", type=str, required=False, dest="concept_embed_file",
                         help="path to a file holding pre-trained CODE embeddings")
     parser.add_argument("--description_dir", type=str, required=False, dest="description_dir",
                         help="path to a file holding index-mapped code descriptions")

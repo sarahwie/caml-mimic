@@ -158,24 +158,23 @@ class ConvAttnPool(BaseModel):
         return yhat, loss, alpha
 
 class ConvAttnPoolPlusGram(BaseModel):
-    def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, recombine_method, hidden_sim_size=20, embed_size=100, dropout=0.5):
+    def __init__(self, Y, embed_file, concept_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, recombine_method, hidden_sim_size=20, embed_size=100, dropout=0.5):
         super(ConvAttnPoolPlusGram, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
         self.embed_size = embed_size
         #make embedding layer
-        if code_embed_file:
+        if concept_embed_file:
             print("loading pretrained CODE embeddings...")
-            #TODO: UPDATE HERE TO LOAD IN PRETRAINED CODE_EMBEDDINGS FILE
-            #TODO: make sure that p.t embeds have dim. n+2*
-            #W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
-            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
-            # self.embed.weight.data = W.clone()
-            raise Exception("*TODO not completed*")
+            el = extract_wvs.load_concept_embeddings(concept_embed_file, embed_size, dicts['ind2concept'], dicts['concept2ind'])
+
+            W = torch.Tensor(el)
+
+            self.concept_embed = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
+            self.concept_embed.weight.data = W.clone()
 
         else:
             #TODO: make sure this is what want**
             print("Catch: NOT using pretrained code embeddings!")
-            #TODO: FIX OR REMOVE THIS***
             concepts_size = len(dicts['ind2concept'])+2
             self.concept_embed = nn.Embedding(concepts_size, embed_size, padding_idx=0) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
             #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
@@ -364,23 +363,25 @@ class ConvAttnPoolPlusGram(BaseModel):
         return yhat, loss, alpha
 
 class ConvAttnPoolPlusConceptEmbeds(BaseModel):
-    def __init__(self, Y, embed_file, code_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, hidden_sim_size=20, embed_size=100, dropout=0.5):
+    def __init__(self, Y, embed_file, concept_embed_file, kernel_size, num_filter_maps, lmbda, gpu, dicts, hidden_sim_size=20, embed_size=100, dropout=0.5):
         super(ConvAttnPoolPlusConceptEmbeds, self).__init__(Y, embed_file, dicts, lmbda, dropout=dropout, gpu=gpu, embed_size=embed_size)
 
+        self.embed_size = embed_size
         #make embedding layer
-        if code_embed_file:
+        if concept_embed_file:
             print("loading pretrained CODE embeddings...")
-            #TODO: UPDATE HERE TO LOAD IN PRETRAINED CODE_EMBEDDINGS FILE
-            #W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
-            # self.concept_size = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
-            # self.embed.weight.data = W.clone()
-            raise Exception("*TODO not completed*")
+            el = extract_wvs.load_concept_embeddings(concept_embed_file, embed_size, dicts['ind2concept'], dicts['concept2ind'])
+
+            W = torch.Tensor(el)
+
+            self.concept_embed = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
+            self.concept_embed.weight.data = W.clone()
 
         else:
             #TODO: make sure this is what want**
             print("Catch: NOT using pretrained code embeddings!")
+            #TODO: FIX OR REMOVE THIS***
             concepts_size = len(dicts['ind2concept'])+2
-            print("CONCEPTS SIZE:", concepts_size)
             self.concept_embed = nn.Embedding(concepts_size, embed_size, padding_idx=0) #TODO: codes and word embeds must have same dimensionality- insert check for this when loaded from P.T. file**
             #TODO: DO ANYTHING TO INIT. THESE WEIGHTS TO START?*
 

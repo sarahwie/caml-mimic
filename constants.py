@@ -14,7 +14,7 @@ concept_write_dir = DATA_DIR + '/concepts' #'/data/mimicdata/mimic3/'
     #TODO: need the following files: -train_concepts.csv
                                    # -test_concepts.csv
                                    # -dev_concepts.csv
-MIMIC_3_DIR = '~/Desktop/mimicdata/mimic3'
+MIMIC_3_DIR = '/Users/SWiegreffe/Desktop/mimicdata/mimic3'
 MIMIC_2_DIR = '/path/to/repo/mimicdata/mimic2'
 
 rootCode = '99999'

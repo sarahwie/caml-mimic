@@ -9,6 +9,9 @@ import pandas as pd
 from ast import literal_eval
 import re
 from collections import defaultdict
+import datasets
+from dataproc import extract_wvs
+import numpy as np
 
 def map_icd_to_SNOMED():
 
@@ -581,8 +584,50 @@ def compute_pairs_vocab_dict(filename, concepts_file):
 	#write out
 	pickle.dump(concept_word_dict, open('/Users/SWiegreffe/Desktop/mimicdata/new_files/concept_word_dict.p','wb'))
 
-def create_concept_embeddings(inpt_file):
-	
+def build_concept_embeddings_matrix(description_dir, embed_file):
+
+	dv_dict = datasets.load_description_vectors(description_dir)
+	concept_embeds = {}
+
+	#extract word embeddings from file but DON'T NORMALIZE THEM:
+	W = []
+	vocab = []
+	with open(embed_file) as ef:
+	    for line in ef:
+	        line = line.rstrip().split()
+	        vec = np.array(line[1:]).astype(np.float)
+	        W.append(vec)
+	        vocab.append(line[0])
+	vocab = vocab[1:]
+	W = np.array(W)
+	print("Embedding shape:", W.shape)
+	w2ind = {k:i for i,k in enumerate(vocab,1)}	
+	print(len(w2ind))
+
+	#now build the concept embeddings
+	i = 0
+	for key, val_lst in dv_dict.items():
+		#remove UNK tokens
+		new_vals = [e for e in val_lst if e != W.shape[0]]
+		if len(new_vals) > 0:
+			embed = np.zeros(len(W[0,:]))
+			for el in new_vals:
+				#get word embedding
+				embed += W[el]
+			embed = embed / float(len(new_vals)) #sum up all the embeddings which are not UNK tokens
+			concept_embeds[key] = embed
+		else: 
+			#if have no embeddings for any of the words in the code description,
+			#randomly gaussian initialize
+			concept_embeds[key] = np.random.randn(len(W[0,:]))
+			i += 1
+
+	print("Initial dictionary size", len(dv_dict))
+	print("New dictionary size:", len(concept_embeds))
+	print("Uninitializable embeds:", i)
+	#save dict
+	pickle.dump(concept_embeds, open(os.path.join(MIMIC_3_DIR, 'concepts.embed'), 'wb'))
+
 
 if __name__ == '__main__':
 	#map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
@@ -596,6 +641,7 @@ if __name__ == '__main__':
 	#remerge_dictionary()
 	#update_vocab('/data/mimicdata/mimic3/patient_notes/code_parents.p', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/', load=True)
 
-	compute_pairs_vocab_dict(filename='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_full_SUBSET.csv', concepts_file='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_patient_concepts_matrix.p')
+	#compute_pairs_vocab_dict(filename='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_full_SUBSET.csv', concepts_file='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_patient_concepts_matrix.p')
 
+	build_concept_embeddings_matrix('/Users/SWiegreffe/Desktop/mimicdata/mimic3/description_vectors.vocab', '/Users/SWiegreffe/Desktop/mimicdata/processed_full.embed')
 

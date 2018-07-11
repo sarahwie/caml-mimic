@@ -35,15 +35,18 @@ def pick_model(args, dicts):
                                     embed_size=args.embed_size, dropout=args.dropout)
     elif args.model == "conv_attn_plus_GRAM":
         filter_size = int(args.filter_size)
+        if args.lmbda > 0:
+            assert args.description_dir is not None
+            #TODO: I'm not sure descr. regularization is even written in to CAML+GRAM model currently**
         assert args.annotation_type is not None
         assert args.concepts_file is not None #must provide extracted concepts if using this model
         assert args.recombine_option is not None #make sure have specified how to construct the embeddings
         if args.recombine_option == 'weight_matrix':
             assert args.concept_word_dict is not None
-        if args.description_dir is None:
+        if args.concept_embed_file is None:
             print("YOU DIDN'T SPECIFY A PRETRAINED CODE EMBEDDINGS FILE!")
         #TODO: add more asserts here
-        model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.code_embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts, args.recombine_option,
+        model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.concept_embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts, args.recombine_option,
                                     embed_size=args.embed_size, hidden_sim_size=args.hidden_sim_size, dropout=args.dropout)
 
         #convert the codes if necessary

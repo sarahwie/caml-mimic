@@ -10,6 +10,7 @@ from constants import *
 import datasets
 
 import numpy as np
+import pickle
 
 def gensim_to_embeddings(wv_file, vocab_file, Y, outfile=None):
     model = gensim.models.Word2Vec.load(wv_file)
@@ -65,16 +66,50 @@ def load_embeddings(embed_file):
         for line in ef:
             line = line.rstrip().split()
             vec = np.array(line[1:]).astype(np.float)
-            vec = vec / (np.linalg.norm(vec) + 1e-6)
+            vec = vec / float(np.linalg.norm(vec) + 1e-6)
             W.append(vec)
             vocab.append(line[0])
         #UNK embedding, gaussian randomly initialized 
         print("adding unk embedding")
         vec = np.random.randn(len(W[-1]))
-        vec = vec / (np.linalg.norm(vec) + 1e-6)
+        vec = vec / float(np.linalg.norm(vec) + 1e-6)
         W.append(vec)
     vocab = vocab[1:] #we don't care about pad token
     W = np.array(W)
     w2ind = {k:i for i,k in enumerate(vocab,1)}
     return W, w2ind
+
+def load_concept_embeddings(embed_file, embed_size, ind2concept, concept2ind):
+
+    #TODO: HOW TO INITIALIZE A FEW CONCEPT EMBEDDINGS WE'RE MISSING WITH THIS METHOD:
+     #[209, 209-209.99, 249, 338-338.99, 339.0, 339.1, 349.3, 358.3, 365.7, 447.7, 535.7, 610-612.99, 625.7, 649.7, 707.2, 99999, E001-E030.9]
+
+    #unlike for word embeds, this embed_file is a dictionary of 'concept':np.array(embedding). We need to create the stacked matrix based on whether or not the concept is in our concept vocab. or not
+    W = np.zeros((len(ind2concept)+2, embed_size))
+
+    embed = pickle.load(open(embed_file,'rb'))
+
+    i = 0
+    for key, el in concept2ind.items():
+        if key in embed:
+
+            #get the embedding & normalize
+            vec = embed[key]
+            vec = vec / float(np.linalg.norm(vec) + 1e-6)
+            assert el != 0 #should not be replacing pad
+            W[el,:] = vec
+
+        else:
+            i += 1
+            #TODO: need to initialize randomly here...for now leave as zeroes
+
+    print("adding unk embedding") #gaussian randomly init.
+    vec = np.random.randn(embed_size)
+    vec = vec / float(np.linalg.norm(vec) + 1e-6)
+    W[len(concept2ind)+1,:] = vec 
+
+    print("missed concept embeddings:", i)
+
+    print("concept embeds init:", W.shape)
+    return W
 

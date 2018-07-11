@@ -258,7 +258,7 @@ def load_lookups(args, desc_embed=False):
             for i,row in enumerate(lr):
                 codes.add(row[0])
         ind2c = {i:c for i,c in enumerate(sorted(codes))}
-        desc_dict = load_code_descriptions()
+        desc_dict = load_code_descriptions(args.model)
     c2ind = {c:i for i,c in ind2c.items()}
 
     if args.model == 'conv_attn_plus_GRAM':
@@ -370,7 +370,18 @@ def reformat(code, is_diag):
         code = code[:2] + '.' + code[2:]
     return code
 
-def load_code_descriptions(version='mimic3'):
+def diag_process(code):
+    if code.startswith('E'):
+        if len(code) > 4: code = code[:4] + '.' + code[4:]
+    else:
+        if len(code) > 3: code = code[:3] + '.' + code[3:]
+    return code
+
+def procedure_process(code):
+    code = code[:2] + '.' + code[2:]
+    return code
+
+def load_code_descriptions(model, version='mimic3'):
     #load description lookup from the appropriate data files
     desc_dict = defaultdict(str)
     if version == 'mimic2':
@@ -404,6 +415,55 @@ def load_code_descriptions(version='mimic3'):
                 code = row[0]
                 if code not in desc_dict.keys():
                     desc_dict[code] = ' '.join(row[1:])
+
+    if model == "conv_attn_plus_GRAM":
+        #also load the higher-level CCS grouped codes**
+
+        with open(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'), 'r') as infd:
+            reader = csv.reader(infd)
+            next(reader)
+            for tokens in reader:
+
+                cat1 = tokens[1][1:-1].strip()
+                cat2 = tokens[3][1:-1].strip()
+                cat3 = tokens[5][1:-1].strip()
+                cat4 = tokens[7][1:-1].strip()
+
+                desc1 = tokens[2].strip()
+                desc2 = tokens[4].strip()
+                desc3 = tokens[6].strip()
+                desc4 = tokens[8].strip()
+
+                if cat1 != '' and cat1 not in desc_dict.keys():
+                    desc_dict[cat1] = desc1
+                if cat2 != '' and cat2 not in desc_dict.keys():
+                    desc_dict[cat2] = desc2
+                if cat3 != '' and cat3 not in desc_dict.keys():
+                    desc_dict[cat3] = desc3
+                if cat4 != '' and cat4 not in desc_dict.keys():
+                    desc_dict[cat4] = desc4
+
+        #do the same things for the procedure codes: Note only have max. 3 levels vs. diagnoses' 4
+        with open(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_pr_tool_2015.csv'), 'r') as infd:
+            reader = csv.reader(infd)
+            next(reader)
+            for tokens in reader:
+                
+                cat1 = tokens[1][1:-1].strip()
+                cat2 = tokens[3][1:-1].strip()
+                cat3 = tokens[5][1:-1].strip()
+
+                desc1 = tokens[2].strip()
+                desc2 = tokens[4].strip()
+                desc3 = tokens[6].strip()
+
+                if cat1 != '' and cat1 not in desc_dict.keys():
+                    desc_dict[cat1] = desc1
+                if cat2 != '' and cat2 not in desc_dict.keys():
+                    desc_dict[cat2] = desc2
+                if cat3 != '' and cat3 not in desc_dict.keys():
+                    desc_dict[cat3] = desc3
+
     return desc_dict
 
 def load_description_vectors(description_dir, version='mimic3'):
