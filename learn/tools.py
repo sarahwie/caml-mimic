@@ -29,7 +29,7 @@ def pick_model(args, dicts):
         model = models.VanillaConv(Y, args.embed_file, filter_size, args.num_filter_maps, args.gpu, dicts, args.embed_size, args.dropout)
     elif args.model == "conv_attn":
         filter_size = int(args.filter_size)
-        if args.lmbda is not None:
+        if args.lmbda > 0:
             assert args.description_dir is not None
         model = models.ConvAttnPool(Y, args.embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts,
                                     embed_size=args.embed_size, dropout=args.dropout)
