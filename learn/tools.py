@@ -43,8 +43,6 @@ def pick_model(args, dicts):
         assert args.recombine_option is not None #make sure have specified how to construct the embeddings
         if args.recombine_option == 'weight_matrix':
             assert args.concept_word_dict is not None
-        if args.concept_embed_file is None:
-            print("YOU DIDN'T SPECIFY A PRETRAINED CODE EMBEDDINGS FILE!")
         #TODO: add more asserts here
         model = models.ConvAttnPoolPlusGram(Y, args.embed_file, args.concept_embed_file, filter_size, args.num_filter_maps, args.lmbda, args.gpu, dicts, args.recombine_option,
                                     embed_size=args.embed_size, hidden_sim_size=args.hidden_sim_size, dropout=args.dropout)

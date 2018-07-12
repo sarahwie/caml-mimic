@@ -626,7 +626,7 @@ def build_concept_embeddings_matrix(description_dir, embed_file):
 	print("New dictionary size:", len(concept_embeds))
 	print("Uninitializable embeds:", i)
 	#save dict
-	pickle.dump(concept_embeds, open(os.path.join(MIMIC_3_DIR, 'concepts.embed'), 'wb'))
+	pickle.dump(concept_embeds, open(os.path.join(MIMIC_3_DIR, 'concepts.embed'), 'wb'), protocol=2)
 
 
 if __name__ == '__main__':
