@@ -203,7 +203,7 @@ class ConvAttnPoolPlusGram(BaseModel):
             pass
 
         elif recombine_method == 'feedforward':
-            h_s = embed_size + ((2*embed_size - embed_size) / 2) #set hidden state to halfway pt (arb. choice)
+            h_s = int(embed_size + ((2*embed_size - embed_size) / 2)) #set hidden state to halfway pt (arb. choice)
             self.recombine_one = nn.Linear(2*embed_size, h_s) #consider other net. specs**
             self.relu_recombine = nn.ReLU() #TODO: TRY DIFF NONLINS. HERE
             self.recombine_two = nn.Linear(h_s, embed_size)
