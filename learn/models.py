@@ -202,6 +202,15 @@ class ConvAttnPoolPlusGram(BaseModel):
         elif recombine_method == 'full_replace':
             pass
 
+        elif recombine_method == 'feedforward':
+            h_s = embed_size + ((2*embed_size - embed_size) / 2) #set hidden state to halfway pt (arb. choice)
+            self.recombine_one = nn.Linear(2*embed_size, h_s) #consider other net. specs**
+            self.relu_recombine = nn.ReLU() #TODO: TRY DIFF NONLINS. HERE
+            self.recombine_two = nn.Linear(h_s, embed_size)
+            #TODO: as per James, init these with xavier_uniform (as per Glorot & Bengio 2010)
+            xavier_uniform(self.recombine_one.weight)
+            xavier_uniform(self.recombine_two.weight)
+
         else:
             raise Exception("Argument Error! Recombination of concept and word embeddings")
 
@@ -306,6 +315,11 @@ class ConvAttnPoolPlusGram(BaseModel):
 
             elif recombine_method == 'full_replace':
                 linear_interp = c
+
+            elif recombine_method == 'feedforward':
+                concat_mat = torch.cat((c,dm),1) #concat concept and word embeds @ concept posn.'s, input to FF network:
+                linear_interp = self.recombine_two(self.relu_recombine(self.recombine_one(concat_mat.transpose(1,2))))
+                linear_interp = linear_interp.transpose(1,2)
 
 #------------------------------------------------------------------- JOIN CONCEPT & WORD MATRICES 
 

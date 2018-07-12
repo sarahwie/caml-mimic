@@ -395,7 +395,7 @@ if __name__ == "__main__":
                         help="path to a file holding pre-trained embeddings")
     parser.add_argument("--parents-file", type=str, required=False, dest="parents_file",
                         help="path to a file holding the dictionary mapping children concepts to their parents")
-    parser.add_argument("--recombination-option", type=str, choices=['full_replace','linear_layer','weight_matrix'], required=False, default=None, dest="recombine_option",
+    parser.add_argument("--recombination-option", type=str, choices=['full_replace','linear_layer','weight_matrix', 'feedforward'], required=False, default=None, dest="recombine_option",
                         help="method for combining concept and word embeddings in GRAM-augmented model")
     parser.add_argument("--concept-word-dict", type=str, required=False, dest="concept_word_dict",
                         help="path to a file holding the dictionary mapping concept-word pairs in the training set to an index")
