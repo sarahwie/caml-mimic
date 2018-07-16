@@ -222,7 +222,7 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 	overlaps = 0
 	missed_patients = 0
 
-	with open(os.path.join(DATA_DIR, '%s_full.csv' % split), 'r') as f:
+	with open(os.path.join(MIMIC_3_DIR, '%s_full.csv' % split), 'r') as f:
 		reader = csv.reader(f)
 		for line in reader:
 			#new patient
@@ -249,7 +249,7 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 			#POPULATE
 			for _, row in sub.iterrows():
 
-				#get the beginning and end index positions, the ICD9_code, etc.
+				#get the beginning and end index positions, the ICD9 code, etc.
 				#row['begin_inx'] #these indices are the same as python indexing! (nice)**
 				#row['end_inx']
 				#row['word_phrase']
@@ -261,15 +261,15 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 					word_pos = starting_inxs.index(row['begin_inx'])
 					# if concept_arr[word_pos] != 0:
 					# 	if isinstance(concept_arr[word_pos], list):
-					# 		concept_arr[word_pos].append(row['ICD9_code'])
+					# 		concept_arr[word_pos].append(row['code'])
 					# 	else: 
-					# 		concept_arr[word_pos] = [concept_arr[word_pos]] + [row['ICD9_code']]
+					# 		concept_arr[word_pos] = [concept_arr[word_pos]] + [row['code']]
 					# 	overlaps += 1
 					# else:
-					# 	concept_arr[word_pos] = row['ICD9_code']
+					# 	concept_arr[word_pos] = row['code']
 
 					#TODO:**for now, just make single code version**
-					concept_arr[word_pos] = row['ICD9_code']
+					concept_arr[word_pos] = row['code']
 
 					#check for overlap
 					end_pos = ending_inxs.index(row['end_inx'])
@@ -277,15 +277,15 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 						multi_words += 1
 						# if concept_arr[end_pos] != 0: #if we have an overlap, append to list: TODO CHECK THIS
 						# 	if isinstance(concept_arr[end_pos], list):
-						# 		concept_arr[end_pos].append(row['ICD9_code'])
+						# 		concept_arr[end_pos].append(row['code'])
 						# 	else: 
-						# 		concept_arr[end_pos] = [concept_arr[end_pos]] + [row['ICD9_code']]
+						# 		concept_arr[end_pos] = [concept_arr[end_pos]] + [row['code']]
 						# 	overlaps += 1
 						# else:
-						# 	concept_arr[end_pos] = row['ICD9_code']
+						# 	concept_arr[end_pos] = row['code']
 
 						#TODO:**for now, just make single code version**
-						concept_arr[end_pos] = row['ICD9_code']
+						concept_arr[end_pos] = row['code']
 
 					if row['word_phrase'] != ' '.join(words[word_pos:end_pos+1]): #check text equal
 						print(row['word_phrase'])
@@ -313,10 +313,10 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 		print("Time to process %s files:" % split, str(b-a))
 
 		#TESTING-------------------------------------------
-		print(patient_concepts_matrix['84392_129675'])
-		print("SHOULD HAVE LENGTH 1644:")
-		print(len(patient_concepts_matrix['84392_129675']))
-		print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
+		# print(patient_concepts_matrix['84392_129675'])
+		# print("SHOULD HAVE LENGTH 1644:")
+		# print(len(patient_concepts_matrix['84392_129675']))
+		# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
 		#--------------------------------------------------
 
 def get_concept_matrix(sub, text):
