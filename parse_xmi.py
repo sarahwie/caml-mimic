@@ -35,7 +35,7 @@ def parse_xmi(args):
 
     df_meta = pd.DataFrame()
     codes = {}
-    patient_concepts_matrix = {}
+    #patient_concepts_matrix = {}
 
     if args.no_stats:
         # #first iterate through to get sets of concepts
@@ -79,8 +79,8 @@ def parse_xmi(args):
                         concepts[el.tagName.split(":")[1]].append(el.attributes['ontologyConceptArr'].value)
                         #store all the tags for now
                         df_local.loc[len(df_local)] = [file.split(".")[0],el.attributes['ontologyConceptArr'].value.split(' ')[-1],int(el.attributes['begin'].value),int(el.attributes['end'].value),el.tagName.split(":")[1]]
-                    #TODO: HERE, ONLY EXTRACTING ICD9 CODES**
-                    elif 'refsem:UmlsConcept' in el.tagName and 'ICD9' in el.attributes['codingScheme'].value:
+                    #TODO: HERE, ONLY EXTRACTING ALL EXCEPT**
+                    elif 'refsem:UmlsConcept' in el.tagName and 'ICD9' not in el.attributes['codingScheme'].value:
                         try: 
                             cnt += 1
                             lookups.loc[len(lookups)] = [el.attributes['xmi:id'].value,el.attributes['codingScheme'].value, el.attributes['code'].value, el.attributes['preferredText'].value]
@@ -121,7 +121,7 @@ def parse_xmi(args):
         df_meta = df_meta.append(df_local)
 
         #write list to a larger dictionary for pickling
-        patient_concepts_matrix[pat_note_id] = concept_arr
+        #patient_concepts_matrix[pat_note_id] = concept_arr
 
         #once have parsed once, pass through again to match actual text term & its location to SNOMED value
         # TODO: write out individual CUIs and their text terms to file*
@@ -139,16 +139,16 @@ def parse_xmi(args):
     if args.no_stats:
         df.to_csv(os.path.join(args.output_dir, 'concept_extraction_stats_%s.csv' % identifier))
 
-    df_meta.to_csv(os.path.join(args.output_dir, 'concepts_%s_ICD9.csv' % identifier), encoding='utf-8')
+    df_meta.to_csv(os.path.join(args.output_dir, 'concepts_%s_all_except_ICD9.csv' % identifier), encoding='utf-8')
     #TODO: SUBSET
-    with open(os.path.join(args.output_dir, 'concepts_vocab_%s_ICD9.csv' % identifier), 'w') as fp:
+    with open(os.path.join(args.output_dir, 'concepts_vocab_%s_all_except_ICD9.csv' % identifier), 'w') as fp:
         writer = csv.writer(fp)
         for item in codes.keys():
             writer.writerow([item, codes[item]])
 
     #dump dictionary of concepts matrices
-    print("Number of keys in dictionary:", len(patient_concepts_matrix.keys()))
-    pickle.dump(patient_concepts_matrix, open(os.path.join(args.output_dir, 'patient_concepts_matrix_%s_ICD9.p' % identifier), 'wb'))
+    #print("Number of keys in dictionary:", len(patient_concepts_matrix.keys()))
+    #pickle.dump(patient_concepts_matrix, open(os.path.join(args.output_dir, 'patient_concepts_matrix_%s_ICD9.p' % identifier), 'wb'))
 
     print("Stats on number of ICD9 codes per file:", pd.Series(num_codes).describe())
 
