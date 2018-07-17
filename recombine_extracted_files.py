@@ -11,12 +11,12 @@ def main(args):
 	input_dir = '/data/swiegreffe6/NEW_MIMIC/extracted_concepts'
 	out_dir = '/data/swiegreffe6/NEW_MIMIC/patient_notes'
 
-    recombine_all_files(args, input_dir, out_dir)
-    #remerge_dictionary(args, input_dir, out_dir)
+	recombine_all_files(args, input_dir, out_dir)
+	#remerge_dictionary(args, input_dir, out_dir)
 
 def recombine_all_files(args, input_dir, out_dir):
 
-    print("Parsing files from %s..." % input_dir)
+	print("Parsing files from %s..." % input_dir)
 
 	split = args.split
 
@@ -24,11 +24,11 @@ def recombine_all_files(args, input_dir, out_dir):
 
 	print("Parsing split %s" % split)
 
-    child_files = [os.path.abspath(e) for e in os.listdir(input_dir) if 'concepts_%s_dir_' % split in e]
-    print("Files to process:", len(child_files))
-    print(child_files)
+	child_files = [os.path.abspath(e) for e in os.listdir(input_dir) if 'concepts_%s_dir_' % split in e]
+	print("Files to process:", len(child_files))
+	print(child_files)
 
-    summed_len = 0
+	summed_len = 0
 	for inx, file in enumerate(child_files):
 		if inx == 0:
 			#first file
@@ -51,15 +51,15 @@ def recombine_all_files(args, input_dir, out_dir):
 	outfile_name = 'concepts_' + split + '_' + args.name + '.csv'
 	df.to_csv(os.path.join(out_dir, outfile_name))
 
-    b = datetime.datetime.now().replace(microsecond=0)
-    print("Time to parse files:", str(b - a))
+	b = datetime.datetime.now().replace(microsecond=0)
+	print("Time to parse files:", str(b - a))
 
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('name', type=str, help='file extension to add for naming purposes')
-    parser.add_argument('split', type=str, help='split')
-    args = parser.parse_args()
-    main(args)
+	parser = argparse.ArgumentParser()
+	parser.add_argument('name', type=str, help='file extension to add for naming purposes')
+	parser.add_argument('split', type=str, help='split')
+	args = parser.parse_args()
+	main(args)
 
