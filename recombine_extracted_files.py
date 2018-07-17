@@ -24,7 +24,7 @@ def recombine_all_files(args, input_dir, out_dir):
 
 	print("Parsing split %s" % split)
 
-	child_files = [os.path.abspath(e) for e in os.listdir(input_dir) if 'concepts_%s_dir_' % split in e]
+	child_files = [os.path.join(input_dir, e) for e in os.listdir(input_dir) if 'concepts_%s_dir_' % split in e]
 	print("Files to process:", len(child_files))
 	print(child_files)
 
@@ -34,12 +34,13 @@ def recombine_all_files(args, input_dir, out_dir):
 			#first file
 			df = pd.read_csv(open(file, 'rb'))
 			summed_len += df.shape[0]
-			cols = list(df.columns)
+			cols = df.columns.tolist()
+			print(cols)
 		else:
 			new_df = pd.read_csv(open(file, 'rb'))
 			summed_len += new_df.shape[0]
-			new_df = new_df[[cols]]
-			df.append(new_df)
+			new_df = new_df[cols]
+			df = df.append(new_df)
 
 		#load in as pandas df
 		#reorder columns

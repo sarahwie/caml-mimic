@@ -237,8 +237,10 @@ def get_concept_text_alignment(inpt_file, split, outpt_file, lst_terms, dir_name
 	df_CONCEPTS = pd.read_csv(inpt_file)
 	print("Shape:", df_CONCEPTS.shape)
 	#subset down to those terms we want
+	print(list(df_CONCEPTS.codingScheme.unique()))
+	print(lst_terms)
 	df_CONCEPTS = df_CONCEPTS.loc[df_CONCEPTS.codingScheme.isin(lst_terms)]
-	print("Shape:", df_CONCEPTS.shape)
+	print("Shape after subset:", df_CONCEPTS.shape)
 	print(df_CONCEPTS.head())
 
 	patient_concepts_matrix = {}
@@ -363,18 +365,19 @@ def get_concept_text_alignment(inpt_file, split, outpt_file, lst_terms, dir_name
 		# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
 		#--------------------------------------------------
 
-		#subset down the vocab and dump, after processing all training examples:
-		new_vocab = set()
-		for inx, cnt in concept_vocab.items():
-			if cnt >= 3:
-				new_vocab.add(inx)
+		if vocab:
+			#subset down the vocab and dump, after processing all training examples:
+			new_vocab = set()
+			for inx, cnt in concept_vocab.items():
+				if cnt >= 3:
+					new_vocab.add(inx)
 
-		print("Old vocab size:", len(concept_vocab))
-		print("New vocab size:", len(new_vocab))
+			print("Old vocab size:", len(concept_vocab))
+			print("New vocab size:", len(new_vocab))
 
-		with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab.txt', 'w') as new:
-			for line in iter(new_vocab):
-				new.write("%s\n" % line)
+			with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab%s.txt' % dir_name, 'w') as new:
+				for line in iter(new_vocab):
+					new.write("%s\n" % line)
 
 def get_concept_matrix(sub, text):
 
@@ -679,9 +682,15 @@ if __name__ == '__main__':
 	#get_SNOMED_to_ICD_stats()
 	#map_extr_concepts_to_icd()
 	#restructure_concepts_for_batched_input()
-	#get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/test_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], vocab=False)
-	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/train_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=True)
-	#get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/dev_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], vocab=False)
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/train_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9CM', 'RXNORM'], 'ICD9_RXNORM', vocab=True)
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/train_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9CM', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=True)
+	
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/dev_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=False)
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/test_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=False)
+
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/dev_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=False)
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/test_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=False)
+	
 	#get_parent_trees('train')
 
 	#update_vocab('/data/mimicdata/mimic3/patient_notes/code_parents.p', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/', load=True)
