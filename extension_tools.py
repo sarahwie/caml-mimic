@@ -13,6 +13,26 @@ import datasets
 from dataproc import extract_wvs
 import numpy as np
 
+'''Overview of Methods: 
+
+	map_icd_to_SNOMED(): 
+	map_snomed_to_icd(): initial methods for manually mapping ICD codes to SNOMED (& vice versa), before setup NLM automatic mapping during parsing.
+	get_SNOMED_to_ICD_stats(): 
+	map_extr_concepts_to_icd()
+
+	restructure_concepts_for_batched_input(): can't remember...
+
+	get_concept_text_alignment(inpt_file, split, outpt_file): this one is used to create the patient matrices based on the extracted concepts for each file/split**
+	get_concept_matrix(sub, text): same method, but can be called from another file (called before from parse_xmi.py)**
+
+	get_parent_trees(): this is used to build the child-to-parent dictionary based on the ICD9-to-CCS groupings (might need this again later)
+	update_vocab(dirs_map, old_vocab, out_dir, load=False): 
+	compute_pairs_vocab_dict(filename, concepts_file): 
+	build_concept_embeddings_matrix(description_dir, embed_file): builds the concept embeddings matrix based on 
+	
+'''
+
+
 def map_icd_to_SNOMED():
 
 	with open(os.path.join(DATA_DIR, 'ICD9CM_SNOMEDCT_map_201712/ICD9CM_SNOMED_MAP_1TOM_201712.txt'), 'r') as f:
@@ -206,13 +226,20 @@ def restructure_concepts_for_batched_input():
 				writer.writerow(row)
 			f.close()
 
-def get_concept_text_alignment(inpt_file, split, outpt_file):
+def get_concept_text_alignment(inpt_file, split, outpt_file, lst_terms, dir_name, vocab=False):
 
+	if vocab == True:
+		concept_vocab = {}
 
 	a = datetime.datetime.now().replace(microsecond=0)
 
 	#get concepts here
 	df_CONCEPTS = pd.read_csv(inpt_file)
+	print("Shape:", df_CONCEPTS.shape)
+	#subset down to those terms we want
+	df_CONCEPTS = df_CONCEPTS.loc[df_CONCEPTS.codingScheme.isin(lst_terms)]
+	print("Shape:", df_CONCEPTS.shape)
+	print(df_CONCEPTS.head())
 
 	patient_concepts_matrix = {}
 	missed_concepts = 0
@@ -224,6 +251,7 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 
 	with open(os.path.join(MIMIC_3_DIR, '%s_full.csv' % split), 'r') as f:
 		reader = csv.reader(f)
+		next(reader)
 		for line in reader:
 			#new patient
 			text = line[2]
@@ -231,6 +259,10 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 
 			#get concepts
 			sub = df_CONCEPTS.loc[df_CONCEPTS.patient_id == pat_note_id]
+
+			#SUBSET DOWN TO CODES WE WANT**
+			#for now, just ICD9 and RXNORM
+
 			if sub.shape[0] == 0:
 				print("NO ROWS FOR:", pat_note_id)
 				missed_patients += 1
@@ -247,6 +279,7 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 				raise Exception("not the same length!")
 
 			#POPULATE
+			pat_codes = set()
 			for _, row in sub.iterrows():
 
 				#get the beginning and end index positions, the ICD9 code, etc.
@@ -270,6 +303,7 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 
 					#TODO:**for now, just make single code version**
 					concept_arr[word_pos] = row['code']
+					pat_codes.add(row['code'])
 
 					#check for overlap
 					end_pos = ending_inxs.index(row['end_inx'])
@@ -286,6 +320,7 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 
 						#TODO:**for now, just make single code version**
 						concept_arr[end_pos] = row['code']
+						pat_codes.add(row['code'])
 
 					if row['word_phrase'] != ' '.join(words[word_pos:end_pos+1]): #check text equal
 						print(row['word_phrase'])
@@ -296,10 +331,19 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 					print("ALIGNMENT ISSUE-MISSED CONCEPT")
 					missed_concepts += 1
 
-				total += 1
+			total += 1
 
-				#add to array
-				patient_concepts_matrix[pat_note_id] = concept_arr
+			#add to array
+			patient_concepts_matrix[pat_note_id] = concept_arr
+
+			if vocab:
+				#add each el of pat_codes to vocab
+				for el in pat_codes:
+					if el in concept_vocab:
+						concept_vocab[el] += 1
+					else:
+						concept_vocab[el] = 1
+
 
 		print("number of missed concepts:", missed_concepts)
 		print("number of missed patients:", missed_patients)
@@ -318,6 +362,19 @@ def get_concept_text_alignment(inpt_file, split, outpt_file):
 		# print(len(patient_concepts_matrix['84392_129675']))
 		# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
 		#--------------------------------------------------
+
+		#subset down the vocab and dump, after processing all training examples:
+		new_vocab = set()
+		for inx, cnt in concept_vocab.items():
+			if cnt >= 3:
+				new_vocab.add(inx)
+
+		print("Old vocab size:", len(concept_vocab))
+		print("New vocab size:", len(new_vocab))
+
+		with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab.txt', 'w') as new:
+			for line in iter(new_vocab):
+				new.write("%s\n" % line)
 
 def get_concept_matrix(sub, text):
 
@@ -496,23 +553,6 @@ def get_parent_trees():
 
 	update_vocab(dirs_map, os.path.join(concept_write_dir, 'train_meta_concepts.txt'), concept_write_dir)
 
-'''This method is due to us manually parallelizing the creation of the training data concept vocab.
-We now need a method to merge them back together'''
-def remerge_dictionary():
-
-	concepts = set()
-	with open('/data/mimicdata/mimic3/patient_notes/extracted_concepts/concepts_vocab_train_ICD9.csv', 'r') as f:
-		reader = csv.reader(f)
-		#next(reader) #no header
-		for line in reader:
-			concepts.add(line[0]) #TODO: here, could instead join all the rows w/ the same concept id and then use the value in line[1] post-join to cut by occ. threshold
-
-	print(len(concepts)) #TODO: probably worth a check here that actually aligns with other file**
-
-	#write back out to file
-	with open('/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', 'w') as new:
-		for line in iter(concepts):
-			new.write("%s\n" % line)
 
 def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 
@@ -639,10 +679,11 @@ if __name__ == '__main__':
 	#get_SNOMED_to_ICD_stats()
 	#map_extr_concepts_to_icd()
 	#restructure_concepts_for_batched_input()
-	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ICD9.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/test_patient_concepts_matrix.p')
+	#get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/test_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], vocab=False)
+	get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/train_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=True)
+	#get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/dev_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], vocab=False)
 	#get_parent_trees('train')
 
-	#remerge_dictionary()
 	#update_vocab('/data/mimicdata/mimic3/patient_notes/code_parents.p', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/concept_vocab_children.txt', '/data/mimicdata/mimic3/patient_notes/extracted_concepts/', load=True)
 
 	#compute_pairs_vocab_dict(filename='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_full_SUBSET.csv', concepts_file='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_patient_concepts_matrix.p')

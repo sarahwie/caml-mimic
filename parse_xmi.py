@@ -116,7 +116,7 @@ def parse_xmi(args):
             df_local['word_phrase'] = df_local.apply(fn, axis=1)
 
         #go ahead and create concept matrix:
-        concept_arr = extension_tools.get_concept_matrix(df_local, text)
+        #concept_arr = extension_tools.get_concept_matrix(df_local, text)
 
         df_meta = df_meta.append(df_local)
 
@@ -174,3 +174,4 @@ if __name__ == "__main__":
     parser.add_argument('--no-stats', action='store_false', required=False, dest='no_stats', help='whether or not to collect and print stats about number of concepts extracted')
     args = parser.parse_args()
     main(args)
+    
