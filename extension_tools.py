@@ -12,6 +12,7 @@ from collections import defaultdict
 import datasets
 from dataproc import extract_wvs
 import numpy as np
+import argparse
 
 '''Overview of Methods: 
 
@@ -347,37 +348,37 @@ def get_concept_text_alignment(inpt_file, split, outpt_file, lst_terms, dir_name
 						concept_vocab[el] = 1
 
 
-		print("number of missed concepts:", missed_concepts)
-		print("number of missed patients:", missed_patients)
-		print("number of multi-word phrases:", multi_words)
-		print("number of unequal texts:", unequal_text)
-		print("num overlaps: ", overlaps)
-		print("total:", total)
-		pickle.dump(patient_concepts_matrix, open(outpt_file, 'wb'))
+	print("number of missed concepts:", missed_concepts)
+	print("number of missed patients:", missed_patients)
+	print("number of multi-word phrases:", multi_words)
+	print("number of unequal texts:", unequal_text)
+	print("num overlaps: ", overlaps)
+	print("total:", total)
+	pickle.dump(patient_concepts_matrix, open(outpt_file, 'wb'))
 
-		b = datetime.datetime.now().replace(microsecond=0)
-		print("Time to process %s files:" % split, str(b-a))
+	b = datetime.datetime.now().replace(microsecond=0)
+	print("Time to process %s files:" % split, str(b-a))
 
-		#TESTING-------------------------------------------
-		# print(patient_concepts_matrix['84392_129675'])
-		# print("SHOULD HAVE LENGTH 1644:")
-		# print(len(patient_concepts_matrix['84392_129675']))
-		# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
-		#--------------------------------------------------
+	#TESTING-------------------------------------------
+	# print(patient_concepts_matrix['84392_129675'])
+	# print("SHOULD HAVE LENGTH 1644:")
+	# print(len(patient_concepts_matrix['84392_129675']))
+	# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
+	#--------------------------------------------------
 
-		if vocab:
-			#subset down the vocab and dump, after processing all training examples:
-			new_vocab = set()
-			for inx, cnt in concept_vocab.items():
-				if cnt >= 3:
-					new_vocab.add(inx)
+	if vocab:
+		#subset down the vocab and dump, after processing all training examples:
+		new_vocab = set()
+		for inx, cnt in concept_vocab.items():
+			if cnt >= 3:
+				new_vocab.add(inx)
 
-			print("Old vocab size:", len(concept_vocab))
-			print("New vocab size:", len(new_vocab))
+		print("Old vocab size:", len(concept_vocab))
+		print("New vocab size:", len(new_vocab))
 
-			with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab_%s_children.txt' % dir_name, 'w') as new:
-				for line in iter(new_vocab):
-					new.write("%s\n" % line)
+		with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab_%s_children.txt' % dir_name, 'w') as new:
+			for line in iter(new_vocab):
+				new.write("%s\n" % line)
 
 def get_concept_matrix(sub, text):
 
@@ -676,27 +677,66 @@ def build_concept_embeddings_matrix(description_dir, embed_file):
 	pickle.dump(concept_embeds, open(os.path.join(MIMIC_3_DIR, 'concepts.embed'), 'wb'), protocol=2)
 
 
+def main(args):
+
+	if args.method == 'get_concept_text_alignment':
+		assert args.input_dir is not None
+		assert args.output_dir is not None
+		assert args.split is not None
+		assert args.lst_terms is not None
+		assert args.dir_name is not None
+
+		get_concept_text_alignment(args.input_dir, args.split, args.output_dir, args.lst_terms, args.dir_name, args.vocab)
+
+	elif args.method == 'update_vocab':
+		assert args.dirs_map is not None
+		assert args.vocab_file is not None
+		assert args.output_dir is not None
+
+		update_vocab(args.dirs_map, args.vocab_file, args.output_dir, args.load)
+
+	#TODO: continue other methods here!
+
 if __name__ == '__main__':
-	#map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
-	#map_snomed_to_icd()
-	#get_SNOMED_to_ICD_stats()
-	#map_extr_concepts_to_icd()
-	#restructure_concepts_for_batched_input()
-	# get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/train_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9CM', 'RXNORM'], 'ICD9_RXNORM', vocab=True)
-	# get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/train_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9CM', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=True)
+
+	'''Example/past commands: 
+
+		map_icd_to_SNOMED() #TODO: CONSIDER BOTH PROCS AND DIAGS**
+		map_snomed_to_icd()
+		get_SNOMED_to_ICD_stats()
+		map_extr_concepts_to_icd()
+		restructure_concepts_for_batched_input()
+		get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/train_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9CM', 'RXNORM'], 'ICD9_RXNORM', vocab=True)
+		get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv', 'train', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/train_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9CM', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=True)
 	
-	# get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/dev_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=False)
-	# get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/test_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=False)
+		get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/dev_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=False)
+		get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/test_patient_concepts_matrix_ICD9_RXNORM.p', ['ICD9', 'RXNORM'], 'ICD9_RXNORM', vocab=False)
 
-	# get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/dev_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=False)
-	# get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/test_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=False)
+		get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_dev_ALL.csv', 'dev', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/dev_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=False)
+		get_concept_text_alignment('/data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_test_ALL.csv', 'test', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/test_patient_concepts_matrix_ICD9_RXNORM_SNOMED.p', ['ICD9', 'RXNORM', 'SNOMEDCT_US'], 'ICD9_RXNORM_SNOMED', vocab=False)
 	
-	#get_parent_trees('train')
+		get_parent_trees('train')
 
-	update_vocab('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9/code_parents.p', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/concept_vocab_ICD9_RXNORM_children.txt', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/', load=True)
-	update_vocab('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9/code_parents.p', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/concept_vocab_ICD9_RXNORM_SNOMED_children.txt', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/', load=True)
+		update_vocab('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9/code_parents.p', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/concept_vocab_ICD9_RXNORM_children.txt', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM/', load=True)
+		update_vocab('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9/code_parents.p', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/concept_vocab_ICD9_RXNORM_SNOMED_children.txt', '/data/swiegreffe6/NEW_MIMIC/extracted_concepts/ICD9_RXNORM_SNOMED/', load=True)
 
-	#compute_pairs_vocab_dict(filename='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_full_SUBSET.csv', concepts_file='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_patient_concepts_matrix.p')
+		compute_pairs_vocab_dict(filename='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_full_SUBSET.csv', concepts_file='/Users/SWiegreffe/Desktop/mimicdata/new_files/train_patient_concepts_matrix.p')
+		build_concept_embeddings_matrix('/Users/SWiegreffe/Desktop/mimicdata/mimic3/description_vectors.vocab', '/Users/SWiegreffe/Desktop/mimicdata/processed_full.embed')
+	
+	'''
+	parser = argparse.ArgumentParser()
+	parser.add_argument('method', type=str, choices=['get_concept_text_alignment','update_vocab','compute_pairs_vocab_dict','build_concept_embeddings_matrix'])
+	parser.add_argument('--split', type=str, required=False, help='split')
+	parser.add_argument("--input-dir", type=str, required=False, dest='input_dir')
+	parser.add_argument("--output-dir", type=str, required=False, dest='output_dir')
+	parser.add_argument("--codes-list", nargs='+', required=False, dest='lst_terms')
+	parser.add_argument("--dir-name", type=str, required=False, dest='dir_name')
+	parser.add_argument("--construct-vocab", action='store_true', required=False, dest='vocab')
 
-	#build_concept_embeddings_matrix('/Users/SWiegreffe/Desktop/mimicdata/mimic3/description_vectors.vocab', '/Users/SWiegreffe/Desktop/mimicdata/processed_full.embed')
+	parser.add_argument("--vocab-file", type=str, required=False, dest='vocab_file')
+	parser.add_argument("--dirs-map", type=str, required=False, dest='dirs_map')
+	parser.add_argument("--load-dirs-map", action='store_true', required=False, dest='load')
+	args = parser.parse_args()
+	main(args)
+
 
