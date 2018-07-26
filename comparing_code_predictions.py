@@ -64,7 +64,7 @@ def get_code_rarities():
 			pred_codes_meca.append(list(set(els[1:])))
 
 	assert hadm_ids == new_hadm_ids_caml == new_hadm_ids_meca #assert IDs align
-	assert len(true_codes) == len(hadm_ids) == len(pred_codes_caml) = len(pred_codes_meca) #and have retrieved all records
+	assert len(true_codes) == len(hadm_ids) == len(pred_codes_caml) == len(pred_codes_meca) #and have retrieved all records
 
 	print("Number of distinct codes in the true test labels:", len(vocab))
 
