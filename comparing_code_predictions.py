@@ -5,7 +5,7 @@ import pandas as pd
 from collections import Counter
 import matplotlib.pyplot as plt
 import numpy as np
-np.set_printoptions(threshold=np.nan, suppress=True)
+# np.set_printoptions(threshold=np.nan, suppress=True)
 
 def main():
 
@@ -28,13 +28,13 @@ def get_code_rarities():
 	vocab = set()
 
 	#get counts from training set, get true occurrences from test set
-	#train_file = '/Users/SWiegreffe/Desktop/mimicdata/test_full.csv'
-	train_file = '/data/swiegreffe6/NEW_MIMIC/mimic3/train_full.csv'
+	train_file = '/Users/SWiegreffe/Desktop/mimicdata/test_full.csv'
+	#train_file = '/data/swiegreffe6/NEW_MIMIC/mimic3/train_full.csv'
 	train_full = pd.read_csv(train_file) #TODO: CHANGE PATH to train file
 	print("train file:", train_file)
 
-	#test_real = pd.read_csv('/Users/SWiegreffe/Desktop/mimicdata/test_full.csv')
-	test_real = pd.read_csv('/data/swiegreffe6/NEW_MIMIC/mimic3/test_full.csv')
+	test_real = pd.read_csv('/Users/SWiegreffe/Desktop/mimicdata/test_full.csv')
+	#test_real = pd.read_csv('/data/swiegreffe6/NEW_MIMIC/mimic3/test_full.csv')
 
 	for row in train_full.itertuples():
 		for label in set(str(row[4]).split(';')): #remove duplicates*
@@ -49,15 +49,15 @@ def get_code_rarities():
 		hadm_id = str(row[2])
 		hadm_ids.append(hadm_id)
 
-	#with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f: 
-	
-	with open('/data/swiegreffe6/caml_models/conv_attn_Jul_11_02:37/preds_test.psv', 'r') as f:
+	with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f: 
+	#with open('/data/swiegreffe6/caml_models/conv_attn_Jul_11_02:37/preds_test.psv', 'r') as f:
 		for line in f:
 			els = line.strip().split('|')
 			new_hadm_ids_caml.append(els[0])
 			pred_codes_caml.append(list(set(els[1:])))
 
-	with open('/data/swiegreffe6/NEW_MIMIC/saved_models/keep/conv_attn_plus_GRAM_Jul_12_19:06/preds_test.psv', 'r') as f:
+	with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f:
+	# with open('/data/swiegreffe6/NEW_MIMIC/saved_models/keep/conv_attn_plus_GRAM_Jul_12_19:06/preds_test.psv', 'r') as f:
 		for line in f:
 			els = line.strip().split('|')
 			new_hadm_ids_meca.append(els[0])
@@ -131,9 +131,9 @@ def get_code_rarities():
 	false_negatives_caml = (true_one_hots > pred_one_hots_caml).astype(int).sum(axis=0)
 
 	predicted_condition_positive_caml = pred_one_hots_caml.sum(axis=0)
-	assert np.all(predicted_condition_positive_caml == true_positives_caml + false_negatives_caml)
+	assert np.all(predicted_condition_positive_caml == true_positives_caml + false_positives_caml)
 	predicted_condition_negative_caml = np.logical_not(pred_one_hots_caml).sum(axis=0)
-	assert np.all(predicted_condition_negative_caml == true_negatives_caml + false_positives_caml)
+	assert np.all(predicted_condition_negative_caml == true_negatives_caml + false_negatives_caml)
 
 	true_positives_meca = np.logical_and(pred_one_hots_meca, true_one_hots).sum(axis=0)
 	false_positives_meca = (pred_one_hots_meca > true_one_hots).astype(int).sum(axis=0)
@@ -141,12 +141,16 @@ def get_code_rarities():
 	false_negatives_meca = (true_one_hots > pred_one_hots_meca).astype(int).sum(axis=0)
 
 	predicted_condition_positive_meca = pred_one_hots_meca.sum(axis=0)
-	assert np.all(predicted_condition_positive_meca == true_positives_meca + false_negatives_meca)
+	assert np.all(predicted_condition_positive_meca == true_positives_meca + false_positives_meca)
 	predicted_condition_negative_meca = np.logical_not(pred_one_hots_meca).sum(axis=0)
-	assert np.all(predicted_condition_negative_meca == true_negatives_meca + false_positives_meca)
+	assert np.all(predicted_condition_negative_meca == true_negatives_meca + false_negatives_meca)
 
 	condition_positive = true_one_hots.sum(axis=0)
+	assert np.all(condition_positive == true_positives_caml + false_negatives_caml)
+	assert np.all(condition_positive == true_positives_meca + false_negatives_meca)
 	condition_negative = np.logical_not(true_one_hots).sum(axis=0)
+	assert np.all(condition_negative == true_negatives_caml + false_positives_caml)
+	assert np.all(condition_negative == true_negatives_meca + false_positives_meca)
 
 	all_cases = true_one_hots.shape[0]
 
