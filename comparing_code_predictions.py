@@ -28,13 +28,13 @@ def get_code_rarities():
 	vocab = set()
 
 	#get counts from training set, get true occurrences from test set
-	train_file = '/Users/SWiegreffe/Desktop/mimicdata/test_full.csv'
-	#train_file = '/data/swiegreffe6/NEW_MIMIC/mimic3/train_full.csv'
+	#train_file = '/Users/SWiegreffe/Desktop/mimicdata/test_full.csv'
+	train_file = '/data/swiegreffe6/NEW_MIMIC/mimic3/train_full.csv'
 	train_full = pd.read_csv(train_file) #TODO: CHANGE PATH to train file
 	print("train file:", train_file)
 
-	test_real = pd.read_csv('/Users/SWiegreffe/Desktop/mimicdata/test_full.csv')
-	#test_real = pd.read_csv('/data/swiegreffe6/NEW_MIMIC/mimic3/test_full.csv')
+	#test_real = pd.read_csv('/Users/SWiegreffe/Desktop/mimicdata/test_full.csv')
+	test_real = pd.read_csv('/data/swiegreffe6/NEW_MIMIC/mimic3/test_full.csv')
 
 	for row in train_full.itertuples():
 		for label in set(str(row[4]).split(';')): #remove duplicates*
@@ -49,15 +49,15 @@ def get_code_rarities():
 		hadm_id = str(row[2])
 		hadm_ids.append(hadm_id)
 
-	with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f: 
-	#with open('/data/swiegreffe6/caml_models/conv_attn_Jul_11_02:37/preds_test.psv', 'r') as f:
+	#with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f: 
+	with open('/data/swiegreffe6/caml_models/conv_attn_Jul_11_02:37/preds_test.psv', 'r') as f:
 		for line in f:
 			els = line.strip().split('|')
 			new_hadm_ids_caml.append(els[0])
 			pred_codes_caml.append(list(set(els[1:])))
 
-	with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f:
-	# with open('/data/swiegreffe6/NEW_MIMIC/saved_models/keep/conv_attn_plus_GRAM_Jul_12_19:06/preds_test.psv', 'r') as f:
+	#with open('/Users/SWiegreffe/Desktop/mimicdata/preds_test.psv', 'r') as f:
+	with open('/data/swiegreffe6/NEW_MIMIC/saved_models/keep/conv_attn_plus_GRAM_Jul_12_19:06/preds_test.psv', 'r') as f:
 		for line in f:
 			els = line.strip().split('|')
 			new_hadm_ids_meca.append(els[0])
