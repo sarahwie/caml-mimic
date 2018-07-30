@@ -227,158 +227,166 @@ def restructure_concepts_for_batched_input():
 				writer.writerow(row)
 			f.close()
 
-def get_concept_text_alignment(inpt_file, split, outpt_file, lst_terms, dir_name, vocab=False):
+def get_concept_text_alignment(inpt_file, concepts_file, outpt_file, lst_terms, dir_name):
 
-	if vocab == True:
-		concept_vocab = {}
+	for split in ['train', 'test', 'dev']:
 
-	a = datetime.datetime.now().replace(microsecond=0)
+		print("processing files from %s..." % split)
+		a = datetime.datetime.now().replace(microsecond=0)
 
-	#get concepts here
-	df_CONCEPTS = pd.read_csv(inpt_file)
-	print("Shape:", df_CONCEPTS.shape)
-	#subset down to those terms we want
-	print(list(df_CONCEPTS.codingScheme.unique()))
-	print(lst_terms)
-	df_CONCEPTS = df_CONCEPTS.loc[df_CONCEPTS.codingScheme.isin(lst_terms)]
-	print("Shape after subset:", df_CONCEPTS.shape)
-	print(df_CONCEPTS.head())
 
-	patient_concepts_matrix = {}
-	missed_concepts = 0
-	multi_words = 0
-	unequal_text = 0
-	total = 0
-	overlaps = 0
-	missed_patients = 0
+		if split == 'train':
+			vocab = True
+			concept_vocab = {}
+		else:
+			vocab = False
 
-	with open(os.path.join(MIMIC_3_DIR, '%s_full.csv' % split), 'r') as f:
-		reader = csv.reader(f)
-		next(reader)
-		for line in reader:
-			#new patient
-			text = line[2]
-			pat_note_id = line[0] + '_' + line[1]
+		#get concepts here
+		df_CONCEPTS = pd.read_csv(concepts_file.replace('train', split))
+		print("Shape:", df_CONCEPTS.shape)
+		#subset down to those terms we want
+		print(list(df_CONCEPTS.codingScheme.unique()))
+		print(lst_terms)
+		df_CONCEPTS = df_CONCEPTS.loc[df_CONCEPTS.codingScheme.isin(lst_terms)]
+		print("Shape after subset:", df_CONCEPTS.shape)
+		print(df_CONCEPTS.head())
 
-			#get concepts
-			sub = df_CONCEPTS.loc[df_CONCEPTS.patient_id == pat_note_id]
+		patient_concepts_matrix = {}
+		missed_concepts = 0
+		multi_words = 0
+		unequal_text = 0
+		total = 0
+		overlaps = 0
+		missed_patients = 0
 
-			#SUBSET DOWN TO CODES WE WANT**
-			#for now, just ICD9 and RXNORM
+		with open(inpt_file.replace('train', split), 'r') as f:
+			reader = csv.reader(f)
+			next(reader)
+			for line in reader:
+				#new patient
+				text = line[2]
+				pat_note_id = line[0] + '_' + line[1]
 
-			if sub.shape[0] == 0:
-				print("NO ROWS FOR:", pat_note_id)
-				missed_patients += 1
+				#get concepts
+				sub = df_CONCEPTS.loc[df_CONCEPTS.patient_id == pat_note_id]
 
-			words = text.strip().split()
-			concept_arr = [0] * len(words)
+				#SUBSET DOWN TO CODES WE WANT**
+				#for now, just ICD9 and RXNORM
 
-			starting_inxs = [0] + [m.start()+1 for m in re.finditer(' ', text)]
-			ending_inxs = [m.end()-1 for m in re.finditer(' ', text)] + [len(text)]
+				if sub.shape[0] == 0:
+					print("NO ROWS FOR:", pat_note_id)
+					missed_patients += 1
 
-			#so now, these indices can be used to mark word positions in sep. text, aka text[starting_inxs[0]:ending_inxs[0]] == words[0]
+				words = text.strip().split()
+				concept_arr = [0] * len(words)
 
-			if len(words) != len(starting_inxs) or len(words) != len(ending_inxs):
-				raise Exception("not the same length!")
+				starting_inxs = [0] + [m.start()+1 for m in re.finditer(' ', text)]
+				ending_inxs = [m.end()-1 for m in re.finditer(' ', text)] + [len(text)]
 
-			#POPULATE
-			pat_codes = set()
-			for _, row in sub.iterrows():
+				#so now, these indices can be used to mark word positions in sep. text, aka text[starting_inxs[0]:ending_inxs[0]] == words[0]
 
-				#get the beginning and end index positions, the ICD9 code, etc.
-				#row['begin_inx'] #these indices are the same as python indexing! (nice)**
-				#row['end_inx']
-				#row['word_phrase']
-				#TODO: MAPPING HERE***
+				if len(words) != len(starting_inxs) or len(words) != len(ending_inxs):
+					raise Exception("not the same length!")
 
-				if row['begin_inx'] in starting_inxs and row['end_inx'] in ending_inxs:
+				#POPULATE
+				pat_codes = set()
+				for _, row in sub.iterrows():
 
-					#write code to position in array
-					word_pos = starting_inxs.index(row['begin_inx'])
-					# if concept_arr[word_pos] != 0:
-					# 	if isinstance(concept_arr[word_pos], list):
-					# 		concept_arr[word_pos].append(row['code'])
-					# 	else: 
-					# 		concept_arr[word_pos] = [concept_arr[word_pos]] + [row['code']]
-					# 	overlaps += 1
-					# else:
-					# 	concept_arr[word_pos] = row['code']
+					#get the beginning and end index positions, the ICD9 code, etc.
+					#row['begin_inx'] #these indices are the same as python indexing! (nice)**
+					#row['end_inx']
+					#row['word_phrase']
+					#TODO: MAPPING HERE***
 
-					#TODO:**for now, just make single code version**
-					concept_arr[word_pos] = row['code']
-					pat_codes.add(row['code'])
+					if row['begin_inx'] in starting_inxs and row['end_inx'] in ending_inxs:
 
-					#check for overlap
-					end_pos = ending_inxs.index(row['end_inx'])
-					if word_pos != end_pos:
-						multi_words += 1
-						# if concept_arr[end_pos] != 0: #if we have an overlap, append to list: TODO CHECK THIS
-						# 	if isinstance(concept_arr[end_pos], list):
-						# 		concept_arr[end_pos].append(row['code'])
+						#write code to position in array
+						word_pos = starting_inxs.index(row['begin_inx'])
+						# if concept_arr[word_pos] != 0:
+						# 	if isinstance(concept_arr[word_pos], list):
+						# 		concept_arr[word_pos].append(row['code'])
 						# 	else: 
-						# 		concept_arr[end_pos] = [concept_arr[end_pos]] + [row['code']]
+						# 		concept_arr[word_pos] = [concept_arr[word_pos]] + [row['code']]
 						# 	overlaps += 1
 						# else:
-						# 	concept_arr[end_pos] = row['code']
+						# 	concept_arr[word_pos] = row['code']
 
 						#TODO:**for now, just make single code version**
-						concept_arr[end_pos] = row['code']
+						concept_arr[word_pos] = row['code']
 						pat_codes.add(row['code'])
 
-					if row['word_phrase'] != ' '.join(words[word_pos:end_pos+1]): #check text equal
-						print(row['word_phrase'])
-						print(' '.join(words[word_pos:end_pos+1]))
-						unequal_text += 1
+						#check for overlap
+						end_pos = ending_inxs.index(row['end_inx'])
+						if word_pos != end_pos:
+							multi_words += 1
+							# if concept_arr[end_pos] != 0: #if we have an overlap, append to list: TODO CHECK THIS
+							# 	if isinstance(concept_arr[end_pos], list):
+							# 		concept_arr[end_pos].append(row['code'])
+							# 	else: 
+							# 		concept_arr[end_pos] = [concept_arr[end_pos]] + [row['code']]
+							# 	overlaps += 1
+							# else:
+							# 	concept_arr[end_pos] = row['code']
 
-				else:
-					print("ALIGNMENT ISSUE-MISSED CONCEPT")
-					missed_concepts += 1
+							#TODO:**for now, just make single code version**
+							concept_arr[end_pos] = row['code']
+							pat_codes.add(row['code'])
 
-			total += 1
+						if row['word_phrase'] != ' '.join(words[word_pos:end_pos+1]): #check text equal
+							print(row['word_phrase'])
+							print(' '.join(words[word_pos:end_pos+1]))
+							unequal_text += 1
 
-			#add to array
-			patient_concepts_matrix[pat_note_id] = concept_arr
-
-			if vocab:
-				#add each el of pat_codes to vocab
-				for el in pat_codes:
-					if el in concept_vocab:
-						concept_vocab[el] += 1
 					else:
-						concept_vocab[el] = 1
+						print("ALIGNMENT ISSUE-MISSED CONCEPT")
+						missed_concepts += 1
+
+				total += 1
+
+				#add to array
+				patient_concepts_matrix[pat_note_id] = concept_arr
+
+				if vocab:
+					#add each el of pat_codes to vocab
+					for el in pat_codes:
+						if el in concept_vocab:
+							concept_vocab[el] += 1
+						else:
+							concept_vocab[el] = 1
 
 
-	print("number of missed concepts:", missed_concepts)
-	print("number of missed patients:", missed_patients)
-	print("number of multi-word phrases:", multi_words)
-	print("number of unequal texts:", unequal_text)
-	print("num overlaps: ", overlaps)
-	print("total:", total)
-	pickle.dump(patient_concepts_matrix, open(outpt_file, 'wb'))
+		print("number of missed concepts:", missed_concepts)
+		print("number of missed patients:", missed_patients)
+		print("number of multi-word phrases:", multi_words)
+		print("number of unequal texts:", unequal_text)
+		print("num overlaps: ", overlaps)
+		print("total:", total)
+		pickle.dump(patient_concepts_matrix, open(outpt_file.replace('train', split), 'wb'))
 
-	b = datetime.datetime.now().replace(microsecond=0)
-	print("Time to process %s files:" % split, str(b-a))
+		b = datetime.datetime.now().replace(microsecond=0)
+		print("Time to process %s files:" % split, str(b-a))
 
-	#TESTING-------------------------------------------
-	# print(patient_concepts_matrix['84392_129675'])
-	# print("SHOULD HAVE LENGTH 1644:")
-	# print(len(patient_concepts_matrix['84392_129675']))
-	# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
-	#--------------------------------------------------
+		#TESTING-------------------------------------------
+		# print(patient_concepts_matrix['84392_129675'])
+		# print("SHOULD HAVE LENGTH 1644:")
+		# print(len(patient_concepts_matrix['84392_129675']))
+		# print("SHOULD HAVE 56 NON-ZERO CONCEPTS")
+		#--------------------------------------------------
 
-	if vocab:
-		#subset down the vocab and dump, after processing all training examples:
-		new_vocab = set()
-		for inx, cnt in concept_vocab.items():
-			if cnt >= 3:
-				new_vocab.add(inx)
+		if vocab:
+			assert split=='train'
+			#subset down the vocab and dump, after processing all training examples:
+			new_vocab = set()
+			for inx, cnt in concept_vocab.items():
+				if cnt >= 3:
+					new_vocab.add(inx)
 
-		print("Old vocab size:", len(concept_vocab))
-		print("New vocab size:", len(new_vocab))
+			print("Old vocab size:", len(concept_vocab))
+			print("New vocab size:", len(new_vocab))
 
-		with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab_%s_children.txt' % dir_name, 'w') as new:
-			for line in iter(new_vocab):
-				new.write("%s\n" % line)
+			with open('/data/swiegreffe6/NEW_MIMIC/extracted_concepts/' + dir_name + '/concept_vocab_%s_children.txt' % dir_name, 'w') as new:
+				for line in iter(new_vocab):
+					new.write("%s\n" % line)
 
 def get_concept_matrix(sub, text):
 
@@ -457,52 +465,11 @@ def get_parent_trees():
 		code = code[:2] + '.' + code[2:]
 		return code
 
-	# df_mapping_diagnoses = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'))
-	# df_mapping_procedures = pd.read_csv(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_pr_tool_2015.csv'))
-
-	# #fix ICD9 format
-	# fn = lambda x: diag_process(x[1:-1].strip())
-	# fn2 = lambda x: procedure_process(x[1:-1].strip())
-
-	# df_mapping_diagnoses['\'ICD-9-CM CODE\''] = df_mapping_diagnoses['\'ICD-9-CM CODE\''].apply(fn)
-
-	# #do the same for procedures:
-	# df_mapping_procedures['\'ICD-9-CM CODE\''] = df_mapping_procedures['\'ICD-9-CM CODE\''].apply(fn2)
-
-	# #write out for testing/posterity
-	# with open(os.path.join(concept_write_dir, 'DIAG_CODES.txt'), 'w') as the_file:
-	# 	for i, row in df_mapping_diagnoses.iterrows():
-	# 		the_file.write(row['\'ICD-9-CM CODE\'']+ '\n')
-
-	# with open(os.path.join(concept_write_dir, 'PROC_CODES.txt'), 'w') as the_file:
-	# 	for i, row in df_mapping_procedures.iterrows():
-	# 		the_file.write(row['\'ICD-9-CM CODE\'']+ '\n')
-
-	# codes = set()
-	# #make a list of codes and see how many can map
-	# for i, row in df_mapping_diagnoses.iterrows():
-	# 	codes.add(row['\'ICD-9-CM CODE\''])
-
-	# for i, row in df_mapping_procedures.iterrows():
-	# 	codes.add(row['\'ICD-9-CM CODE\''])
-
-
-	# with open(os.path.join(concept_write_dir, '%s_meta_concepts.txt' % split), 'r') as f:
-	# 	lines = f.read().splitlines()
-	# 	#these are the child codes
-	# 	for line in lines:
-	# 		if line not in codes:
-	# 			print(line) #Just one not present**
-
-	#get a mapping for parents: taken from Ed's code
-#------------------------------------------------------------------------------------------
-
 	a = datetime.datetime.now().replace(microsecond=0)
 
-	dirs_map = defaultdict(list)#TODO: RETURN SELF + ROOTCODE**)
+	dirs_map = {}
 
-	#TODO: INCLUDE A ROOT CODE?? For now, if doesn't have any parents in CCS, just use that embedding**
-	#TODO: HERE, MAKE SURE DUPLICATE ALL CHANGES FOR BOTH PROCS AND DIAGS FILES :)
+	#TODO: WE ARE INCLUDING A ROOT CODE HERE
 
 	infd = open(os.path.join(DATA_DIR, 'Multi_Level_CCS_2015/ccs_multi_dx_tool_2015.csv'), 'r')
 	_ = infd.readline()
@@ -548,14 +515,61 @@ def get_parent_trees():
 
 	infd.close()
 
-	print(len(dirs_map))
+	print("LEN DIRS MAP before SNOMED add:", len(dirs_map)) #19020
 
-	#TODO: we want to make sure we have a mapping for each code in our original vocabulary-- this is coded into the main model code by the defaultdict
+	snomed_relations = {}
+	#read in metadata about SNOMED:
+	infd = pd.read_csv(os.path.join(DATA_DIR, 'SnomedCT_USEditionRF2_PRODUCTION_20180301T183000Z/Full/Terminology/sct2_Relationship_Full_US1000124_20180301.txt'), sep='\t')
+	#read in file and parent-child relationships
+	for inx, row in tqdm(infd.iterrows(),total=5008688):
+		if row['active'] == 1:
+			snomed_relations[int(row['sourceId'])] = int(row['destinationId'])
+			# if int(row['sourceId']) not in snomed_relations:
+			# 	snomed_relations[int(row['sourceId'])] = [int(row['destinationId'])]
+			# else:
+			# 	snomed_relations[int(row['sourceId'])] += [int(row['destinationId'])]
+
+	#HUGE TODO: CONSIDER FULL HIERARCHY** (MULTIPLE PARENTS!)
+	#pickle.dump(snomed_relations, open(os.path.join(DATA_DIR, 'snomed_child_parents_LIST_dict.p'), 'w'))
+
+	#get count
+	# mult_parents = 0
+	# l = len(snomed_relations) #=403433 (distinct children codes), 301380 have multiple parents!
+	# for el in tqdm(snomed_relations, total=l):
+	# 	if len(snomed_relations[el]) > 1:
+	# 		mult_parents += 1
+	# print("Num. Mult Parents:", mult_parents)
+
+	#NOTE: dicts are of type np.int64, except with above conversion to int!*
+
+	missed = 0
+	for el in snomed_relations: #build complete trees
+		try:
+			dirs_map[el] = recurse_through_SNOMED_hierarchy([el], snomed_relations)
+		except RuntimeError:
+			missed += 1
+			pass
+	#if has no parents, will be treated by our method during data_generator processing
+	#NOTE: there are 1429 missed concepts w/ recursion depth > 999. And a total of 402004 SNOMED codes with a hierarchy we can actually use :) 
+
+	print("SNOMED missed:", missed)
+	print("LEN DIRS MAP after SNOMED add:", len(dirs_map)) #421024
+
+	#for el in dirs_map:
+		# if len(dirs_map[el]) > 22:
+		# 	print(len(dirs_map[el]))
+
+	#**LONGEST CHAIN: 24**
 
 	print(dirs_map)
 	pickle.dump(dirs_map, open(os.path.join(concept_write_dir, 'code_parents.p'), 'wb'))
+	return dirs_map
 
-	update_vocab(dirs_map, os.path.join(concept_write_dir, 'train_meta_concepts.txt'), concept_write_dir)
+def recurse_through_SNOMED_hierarchy(inpt, snomed_relations):
+    if inpt[-1] not in snomed_relations: #top level
+        return inpt + [int(rootCode)]
+    else:
+        return recurse_through_SNOMED_hierarchy(inpt + [snomed_relations[inpt[-1]]], snomed_relations)
 
 
 def update_vocab(dirs_map, old_vocab, out_dir, load=False):
@@ -576,7 +590,7 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 			for el in d[line]:
 				codes.add(el)
 
-	with open(os.path.join(out_dir, 'concept_vocab.txt'), 'w') as new:
+	with open(out_dir, 'w') as new:
 		for line in iter(codes):
 			new.write("%s\n" % line)
 
@@ -681,12 +695,12 @@ def main(args):
 
 	if args.method == 'get_concept_text_alignment':
 		assert args.input_dir is not None
+		assert args.concept_dir is not None
 		assert args.output_dir is not None
-		assert args.split is not None
 		assert args.lst_terms is not None
 		assert args.dir_name is not None
 
-		get_concept_text_alignment(args.input_dir, args.split, args.output_dir, args.lst_terms, args.dir_name, args.vocab)
+		get_concept_text_alignment(args.input_dir, args.concept_dir, args.output_dir, args.lst_terms, args.dir_name)
 
 	elif args.method == 'update_vocab':
 		assert args.dirs_map is not None
@@ -726,12 +740,11 @@ if __name__ == '__main__':
 	'''
 	parser = argparse.ArgumentParser()
 	parser.add_argument('method', type=str, choices=['get_concept_text_alignment','update_vocab','compute_pairs_vocab_dict','build_concept_embeddings_matrix'])
-	parser.add_argument('--split', type=str, required=False, help='split')
 	parser.add_argument("--input-dir", type=str, required=False, dest='input_dir')
+	parser.add_argument("--concepts-dir", type=str, required=False, dest='concept_dir')
 	parser.add_argument("--output-dir", type=str, required=False, dest='output_dir')
 	parser.add_argument("--codes-list", nargs='+', required=False, dest='lst_terms')
 	parser.add_argument("--dir-name", type=str, required=False, dest='dir_name')
-	parser.add_argument("--construct-vocab", action='store_true', required=False, dest='vocab')
 
 	parser.add_argument("--vocab-file", type=str, required=False, dest='vocab_file')
 	parser.add_argument("--dirs-map", type=str, required=False, dest='dirs_map')
