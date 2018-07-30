@@ -262,7 +262,7 @@ def get_concept_text_alignment(inpt_file, concepts_file, outpt_file, lst_terms, 
 		with open(inpt_file.replace('train', split), 'r') as f:
 			reader = csv.reader(f)
 			next(reader)
-			for line in reader:
+			for line in tqdm(reader):
 				#new patient
 				text = line[2]
 				pat_note_id = line[0] + '_' + line[1]
@@ -374,6 +374,7 @@ def get_concept_text_alignment(inpt_file, concepts_file, outpt_file, lst_terms, 
 		#--------------------------------------------------
 
 		if vocab:
+			print("Writing vocab...")
 			assert split=='train'
 			#subset down the vocab and dump, after processing all training examples:
 			new_vocab = set()
