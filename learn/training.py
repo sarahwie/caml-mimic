@@ -178,6 +178,12 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     else:
         GRAM = False
 
+    if recombine_option == 'weight_matrix':
+        weights_matrix = True
+    else:
+        weights_matrix = False
+
+
     print("EPOCH %d" % epoch)
     num_labels = len(dicts['ind2c'])
 
@@ -190,7 +196,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     desc_embed = model.lmbda > 0
 
     model.train()
-    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=desc_embed, version=version) #TODO: CONV.
+    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, weights_matrix, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, concepts, parents, target, bcm, dm, word_concept_mask, _, code_set, descs = tup
@@ -200,19 +206,28 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
         # print(concepts.shape)
         # print("LARGE INDICES:", parents[np.where(parents >= 2129)])
         if GRAM:
-            data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm)), Variable(torch.LongTensor(dm)), Variable(torch.LongTensor(word_concept_mask))), Variable(torch.FloatTensor(target))
+            if weights_matrix:
+                data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm)), Variable(torch.LongTensor(dm)), Variable(torch.LongTensor(word_concept_mask))), Variable(torch.FloatTensor(target))
+            else:
+                data, target = (Variable(torch.LongTensor(data)), Variable(torch.LongTensor(concepts)), Variable(torch.LongTensor(parents)), Variable(torch.ByteTensor(bcm)), Variable(torch.LongTensor(dm))), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
 
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu and GRAM:
-            data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), data[4].cuda(), data[5].cuda(), True)
+            if weights_matrix:
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), data[4].cuda(), data[5].cuda(), True)
+            else:
+                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), data[3].cuda(), data[4].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
         elif GRAM:
-            data = (data[0], data[1], data[2], data[3], data[4], data[5], False)
+            if weights_matrix:
+                data = (data[0], data[1], data[2], data[3], data[4], data[5], False)
+            else:
+                data = (data[0], data[1], data[2], data[3], data[4], False)
         optimizer.zero_grad()
 
         if desc_embed:
@@ -269,6 +284,11 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
     else:
         GRAM = False
 
+    if recombine_option == 'weight_matrix':
+        weights_matrix = True
+    else:
+        weights_matrix = False
+
     filename = data_path.replace('train', fold) 
     if GRAM:
         concepts_file = concepts_file.replace('train', fold)
@@ -292,7 +312,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     model.eval()
     #**TODO: UPDATE FOR CONCEPTS**
-    gen = datasets.data_generator(filename, concepts_file, dicts, 1, num_labels, GRAM, desc_embed=desc_embed, version=version)
+    gen = datasets.data_generator(filename, concepts_file, dicts, 1, num_labels, GRAM, weights_matrix, desc_embed=desc_embed, version=version)
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
@@ -315,24 +335,36 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
             if dm.shape[1] == 0:
                 dm = np.zeros((dm.shape[0],1))
 
-            if word_concept_mask.shape[1] == 0:
-                word_concept_mask = np.zeros((word_concept_mask.shape[0], 1))
-
-            data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True), Variable(torch.LongTensor(word_concept_mask), volatile=True)), Variable(torch.FloatTensor(target))
+            if weights_matrix:
+                if word_concept_mask.shape[1] == 0:
+                    word_concept_mask = np.zeros((word_concept_mask.shape[0], 1))
+                    
+                data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True), Variable(torch.LongTensor(word_concept_mask), volatile=True)), Variable(torch.FloatTensor(target))
+            else:
+                data, target = (Variable(torch.LongTensor(data), volatile=True), Variable(torch.LongTensor(concepts), volatile=True), Variable(torch.LongTensor(parents), volatile=True), pass_in, Variable(torch.LongTensor(dm), volatile=True)), Variable(torch.FloatTensor(target))
         else:
             data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
 
         if gpu and GRAM:
             if pass_in is None:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, data[4].cuda(), data[5].cuda(), True)
+                if weights_matrix:
+                    data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, data[4].cuda(), data[5].cuda(), True)
+                else:
+                    data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in, data[4].cuda(), True)
             else:
-                data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), data[4].cuda(), data[5].cuda(), True)
+                if weights_matrix:
+                    data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), data[4].cuda(), data[5].cuda(), True)
+                else:
+                    data = (data[0].cuda(), data[1].cuda(), data[2].cuda(), pass_in.cuda(), data[4].cuda(), True)
             target = target.cuda()
         elif gpu:
             data = data.cuda()
             target = target.cuda()
         elif GRAM:
-            data = (data[0], data[1], data[2], pass_in, data[4], data[5], False)
+            if weights_matrix:
+                data = (data[0], data[1], data[2], pass_in, data[4], data[5], False)
+            else:
+                data = (data[0], data[1], data[2], pass_in, data[4], False)
         model.zero_grad()
 
         if desc_embed:

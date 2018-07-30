@@ -31,7 +31,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM):
+    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM, weights_matrix):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -110,11 +110,11 @@ class Batch:
             word_mask = [el for el,c in zip(text,con) if c != 0]
             self.docs_masks.append(word_mask)
 
-            children_concepts = [child for child in con if child != 0] #this is the list of children concept codes
+            if weights_matrix:
 
-            weights_matrix_mask = [concept_word[el] if el in concept_word else len(concept_word)+1 for el in zip(word_mask, children_concepts)]
-
-            self.word_concept_mask.append(weights_matrix_mask)
+                children_concepts = [child for child in con if child != 0] #this is the list of children concept codes
+                weights_matrix_mask = [concept_word[el] if el in concept_word else len(concept_word)+1 for el in zip(word_mask, children_concepts)]
+                self.word_concept_mask.append(weights_matrix_mask)
 
         #build instance
         self.docs.append(text)
@@ -127,7 +127,7 @@ class Batch:
         self.length = min(self.max_length, length)
 
 
-    def pad_docs(self, GRAM):
+    def pad_docs(self, GRAM, weights_matrix):
         #pad all docs (and concepts) to have self.length
 
         if GRAM:
@@ -155,8 +155,9 @@ class Batch:
             #pad word concepts mask as well
             [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.docs_masks]
 
-            #and word-concept indices mask as well
-            [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.word_concept_mask]
+            if weights_matrix:
+                #and word-concept indices mask as well
+                [xi.extend([0] * (max_concepts_in_batch-len(xi))) for xi in self.word_concept_mask]
 
         else: 
             padded_docs = []
@@ -180,7 +181,7 @@ def pad_desc_vecs(desc_vecs):
         pad_vecs.append(vec)
     return pad_vecs
 
-def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM, desc_embed=False, version='mimic3'):
+def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM, weights_matrix, desc_embed=False, version='mimic3'):
     """
         Inputs:
             filename: holds data sorted by sequence length, for best batching
@@ -210,12 +211,12 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
         for row in r:
             #find the next `batch_size` instances
             if len(cur_inst.docs) == batch_size:
-                cur_inst.pad_docs(GRAM)
+                cur_inst.pad_docs(GRAM, weights_matrix)
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM)
-        cur_inst.pad_docs(GRAM)
+            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM, weights_matrix)
+        cur_inst.pad_docs(GRAM, weights_matrix)
         yield cur_inst.to_ret()
 
 def load_vocab_dict(args, vocab_file):
@@ -265,23 +266,30 @@ def load_lookups(args, desc_embed=False):
         ind2concept = load_concepts(args)
         concept2ind = {c:i for i,c in ind2concept.items()} 
         child2parents = pickle.load(open(args.parents_file, 'rb'))
-        concept_word = pickle.load(open(args.concept_word_dict, 'rb'))
 
-        #remap based on concept2ind and w2ind:
-        new_dict = set()
-        for key, value in concept_word.items():
-            if key[0] in w2ind and key[1] in concept2ind:
-                new_dict.add((int(w2ind[key[0]]), int(concept2ind[key[1]])))
-            elif key[0] in w2ind:
-                new_dict.add((int(w2ind[key[0]]), len(concept2ind)+1))
-            elif key[1] in concept2ind:
-                new_dict.add((len(w2ind)+1, int(concept2ind[key[1]])))
-            else:
-                #both unk
-                new_dict.add((len(w2ind)+1, len(concept2ind)+1))
+        if args.recombine_option == 'weight_matrix':
+            concept_word = pickle.load(open(args.concept_word_dict, 'rb'))
 
-        #enumerate again
-        concept_word = {c:i for i,c in enumerate(sorted(new_dict), 1)}
+            #remap based on concept2ind and w2ind:
+            new_dict = set()
+            for key, value in concept_word.items():
+                if key[0] in w2ind and key[1] in concept2ind:
+                    new_dict.add((int(w2ind[key[0]]), int(concept2ind[key[1]])))
+                elif key[0] in w2ind:
+                    new_dict.add((int(w2ind[key[0]]), len(concept2ind)+1))
+                elif key[1] in concept2ind:
+                    new_dict.add((len(w2ind)+1, int(concept2ind[key[1]])))
+                else:
+                    #both unk
+                    #already have an UNK token as last position in dictionary
+                    pass
+                    # new_dict.add((len(w2ind)+1, len(concept2ind)+1))
+
+            #enumerate again
+            concept_word = {c:i for i,c in enumerate(sorted(new_dict), 1)}
+
+        else:
+            concept_word = None
 
     else:
         ind2concept = None

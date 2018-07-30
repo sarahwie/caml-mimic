@@ -246,7 +246,10 @@ class ConvAttnPoolPlusGram(BaseModel):
 
     def forward(self, data, target, recombine_method, desc_data=None, get_attention=True):
 
-        x, concepts, parents, batched_concepts_mask, dm, word_concept_mask, gpu = data #unpack input
+        if recombine_method == 'weight_matrix':
+            x, concepts, parents, batched_concepts_mask, dm, word_concept_mask, gpu = data #unpack input
+        else:
+            x, concepts, parents, batched_concepts_mask, dm, gpu = data #unpack input
 
         # get embeddings
         x = self.embed(x)
