@@ -588,8 +588,11 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 			line = line.strip()
 			codes.add(line)
 			old_codes.add(line)
-			for el in d[line]:
-				codes.add(el)
+			if line in d:
+				for el in d[line]:
+					codes.add(el)
+			else:
+				print("NO PARENTS FOR:", line)
 
 	with open(out_dir, 'w') as new:
 		for line in iter(codes):
