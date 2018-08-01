@@ -520,18 +520,20 @@ def get_parent_trees():
 
 	snomed_relations = {}
 	#read in metadata about SNOMED:
-	infd = pd.read_csv(os.path.join(DATA_DIR, 'SnomedCT_USEditionRF2_PRODUCTION_20180301T183000Z/Full/Terminology/sct2_Relationship_Full_US1000124_20180301.txt'), sep='\t')
+	#infd = pd.read_csv(os.path.join(DATA_DIR, 'SnomedCT_USEditionRF2_PRODUCTION_20180301T183000Z/Full/Terminology/sct2_Relationship_Full_US1000124_20180301.txt'), sep='\t')
+	infd = pd.read_csv(os.path.join(DATA_DIR, 'SnomedCT_USEditionRF2_PRODUCTION_20180301T183000Z/Snapshot/Terminology/sct2_StatedRelationship_Snapshot_US1000124_20180301.txt'), sep='\t')
+
 	#read in file and parent-child relationships
 	for inx, row in tqdm(infd.iterrows(),total=5008688):
-		if row['active'] == 1:
-			snomed_relations[int(row['sourceId'])] = int(row['destinationId'])
-			# if int(row['sourceId']) not in snomed_relations:
-			# 	snomed_relations[int(row['sourceId'])] = [int(row['destinationId'])]
+		if row['active'] == 1 and row['typeId'] == 116680003: #is-a relationship
+			snomed_relations[str(row['sourceId'])] = str(row['destinationId'])
+			# if str(row['sourceId']) not in snomed_relations:
+			# 	snomed_relations[str(row['sourceId'])] = [str(row['destinationId'])]
 			# else:
-			# 	snomed_relations[int(row['sourceId'])] += [int(row['destinationId'])]
+			# 	snomed_relations[str(row['sourceId'])] += [str(row['destinationId'])]
 
 	#HUGE TODO: CONSIDER FULL HIERARCHY** (MULTIPLE PARENTS!)
-	#pickle.dump(snomed_relations, open(os.path.join(DATA_DIR, 'snomed_child_parents_LIST_dict.p'), 'w'))
+	#pickle.dump(snomed_relations, open(os.path.join(DATA_DIR, 'snomed_child_parents_LIST_NEW_dict.p'), 'wb'))
 
 	#get count
 	# mult_parents = 0
@@ -543,22 +545,22 @@ def get_parent_trees():
 
 	#NOTE: dicts are of type np.int64, except with above conversion to int!*
 
-	missed = 0
+	missed = []
 	for el in snomed_relations: #build complete trees
 		try:
 			dirs_map[el] = recurse_through_SNOMED_hierarchy([el], snomed_relations)
 		except RuntimeError:
-			missed += 1
-			pass
+			missed.append(el)
 	#if has no parents, will be treated by our method during data_generator processing
-	#NOTE: there are 1429 missed concepts w/ recursion depth > 999. And a total of 402004 SNOMED codes with a hierarchy we can actually use :) 
+	#NOTE: there are 347,230 missed concepts w/ no recursion depth errors**
+	#MAX Depth: 24
 
-	print("SNOMED missed:", missed)
+	print("SNOMED missed:", len(missed))
 	print("LEN DIRS MAP after SNOMED add:", len(dirs_map)) #421024
 
-	#for el in dirs_map:
-		# if len(dirs_map[el]) > 22:
-		# 	print(len(dirs_map[el]))
+	# for el in dirs_map:
+	# 	if len(dirs_map[el]) > 22:
+	# 		print(len(dirs_map[el]))
 
 	#**LONGEST CHAIN: 24**
 
@@ -568,7 +570,9 @@ def get_parent_trees():
 
 def recurse_through_SNOMED_hierarchy(inpt, snomed_relations):
     if inpt[-1] not in snomed_relations: #top level
-        return inpt + [int(rootCode)]
+        return inpt + [rootCode]
+        #NOTE: we remove the rootCode for SNOMED because SNOMED CT has it's own rootCode: 138875005, or "SNOMED CT Concept"
+        #But we keep for the unknown concepts*
     else:
         return recurse_through_SNOMED_hierarchy(inpt + [snomed_relations[inpt[-1]]], snomed_relations)
 
@@ -580,6 +584,7 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 	else:
 		d= dirs_map
 
+	no_parents = 0
 	codes = set()
 	old_codes = set()
 	#TODO: UPDATE
@@ -592,6 +597,7 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 				for el in d[line]:
 					codes.add(el)
 			else:
+				no_parents += 1
 				print("NO PARENTS FOR:", line)
 
 	with open(out_dir, 'w') as new:
@@ -600,6 +606,7 @@ def update_vocab(dirs_map, old_vocab, out_dir, load=False):
 
 	print("Length child codes:", len(old_codes))
 	print("Number of parent + child codes:", len(codes))
+	print("Number of missed parents:", no_parents)
 
 def compute_pairs_vocab_dict(filename, concepts_file):
 
