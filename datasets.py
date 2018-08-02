@@ -81,11 +81,11 @@ class Batch:
                 con = con[:self.max_length]
 
             #GET PARENTS
-            parents = [child2parents[w] if w in child2parents else [w, rootCode] for w in concept_dict[joint_id] if w != 0] #this is the list of parent codes for each concept
+            parents = [child2parents[w][:-1][:5] + [rootCode] if w in child2parents else [w, rootCode] for w in concept_dict[joint_id] if w != 0] #this is the list of parent codes for each concept
 
             if hierarchy_size == "6":
                 #truncate codes at six, by subsetting down:
-                parents = [(el[:5] + el[-1:]) if (len(el) > 6) else el for el in parents]
+                #parents = [(el[:5] + el[-1:]) if (len(el) > 6) else el for el in parents]
                 max_size = 6
 
             elif hierarchy_size == "max_batch":
