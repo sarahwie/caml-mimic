@@ -41,6 +41,7 @@ def pick_model(args, dicts):
         assert args.annotation_type is not None
         assert args.concepts_file is not None #must provide extracted concepts if using this model
         assert args.recombine_option is not None #make sure have specified how to construct the embeddings
+        assert args.hierarchy_size is not None
         if args.recombine_option == 'weight_matrix':
             assert args.concept_word_dict is not None
         #TODO: add more asserts here

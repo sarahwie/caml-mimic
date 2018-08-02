@@ -524,7 +524,7 @@ def get_parent_trees():
 	infd = pd.read_csv(os.path.join(DATA_DIR, 'SnomedCT_USEditionRF2_PRODUCTION_20180301T183000Z/Snapshot/Terminology/sct2_StatedRelationship_Snapshot_US1000124_20180301.txt'), sep='\t')
 
 	#read in file and parent-child relationships
-	for inx, row in tqdm(infd.iterrows(),total=5008688):
+	for inx, row in tqdm(infd.iterrows(),total=888405):
 		if row['active'] == 1 and row['typeId'] == 116680003: #is-a relationship
 			snomed_relations[str(row['sourceId'])] = str(row['destinationId'])
 			# if str(row['sourceId']) not in snomed_relations:
@@ -564,8 +564,7 @@ def get_parent_trees():
 
 	#**LONGEST CHAIN: 24**
 
-	print(dirs_map)
-	pickle.dump(dirs_map, open(os.path.join(concept_write_dir, 'code_parents.p'), 'wb'))
+	pickle.dump(dirs_map, open(os.path.join(concept_write_dir, 'code_parents.p'), 'wb'), protocol=2)
 	return dirs_map
 
 def recurse_through_SNOMED_hierarchy(inpt, snomed_relations):
@@ -762,5 +761,7 @@ if __name__ == '__main__':
 	parser.add_argument("--load-dirs-map", action='store_true', required=False, dest='load')
 	args = parser.parse_args()
 	main(args)
+
+	#get_parent_trees()
 
 

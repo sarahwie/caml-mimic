@@ -31,7 +31,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM, weights_matrix):
+    def add_instance(self, inpt, ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM, weights_matrix, hierarchy_size):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -80,18 +80,31 @@ class Batch:
             if len(con) > self.max_length:
                 con = con[:self.max_length]
 
-            #TODO: GET PARENTS (len 6*)**
-            #TODO: WHY ARE THERE CODES WHICH WE HAVE TO EMBED AS UNK IN TRAINING????** see in ConvAttnPoolPlusGram init() in models.py where have extended len(concept_embeddings matrix) by 1!
+            #GET PARENTS
             parents = [child2parents[w] if w in child2parents else [w, rootCode] for w in concept_dict[joint_id] if w != 0] #this is the list of parent codes for each concept
-            #NOTE: the above: we want to do this regardless of whether or not we have an index of that child in our training set-constructed vocab, so that we can still learn the embeds @ test time over the parents
+
+            if hierarchy_size == "6":
+                #truncate codes at six, by subsetting down:
+                parents = [(el[:5] + el[-1:]) if (len(el) > 6) else el for el in parents]
+                max_size = 6
+
+            elif hierarchy_size == "max_batch":
+                #TODO: GET MAX SIZE OF BATCH**
+                max_size = 0
+                for el in parents:
+                    if len(el) > max_size:
+                        max_size = len(el)
+
+            elif hierarchy_size == "dynamic":
+                raise Exception("not finished yet!")
+            
             #convert to indices
             parent_inx = [[int(concept2ind[it]) if it in concept2ind else len(concept2ind)+1 for it in el] for el in parents] 
-            #now, we embed the parents based on whether or not they existed in our model**
-            #TODO: check the 3 above dicts: con, parents, and parent_inx**
 
-            #pad with 0's so each has len. 6 (inc. child itself)
-            #TODO: WHAT IS THE ROLE OF THE ROOT CODE HERE-- A 'SHARED' EMBEDDING OF SOME SORT?
-            pars = [xi+[0]*(6-len(xi)) for xi in parent_inx]
+            #pad with 0's so each has same len. (inc. child)
+            #WE ARE ALSO INCLUDING ROOT CODE
+
+            pars = [xi+[0]*(max_size-len(xi)) for xi in parent_inx]
 
             #****TODO: ASSERT ORDER HELD-- LOWEST LEVEL, UP****
             concept_len = [1]*len([el for el in con if el != 0])
@@ -181,7 +194,7 @@ def pad_desc_vecs(desc_vecs):
         pad_vecs.append(vec)
     return pad_vecs
 
-def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM, weights_matrix, desc_embed=False, version='mimic3'):
+def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM, weights_matrix, hierarchy_size, desc_embed=False, version='mimic3'):
     """
         Inputs:
             filename: holds data sorted by sequence length, for best batching
@@ -215,7 +228,7 @@ def data_generator(filename, concepts_file, dicts, batch_size, num_labels, GRAM,
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM, weights_matrix)
+            cur_inst.add_instance((row, concept_dict), ind2c, c2ind, w2ind, dv_dict, concept2ind, ind2concept, child2parents, concept_word, num_labels, GRAM, weights_matrix, hierarchy_size)
         cur_inst.pad_docs(GRAM, weights_matrix)
         yield cur_inst.to_ret()
 

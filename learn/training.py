@@ -81,7 +81,7 @@ def train_epochs(args, model, optimizer, params, dicts):
 
         metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path, args.concepts_file,
                                                   args.version, test_only, dicts, model_dir, 
-                                                  args.samples, args.gpu, args.quiet, args.model, args.recombine_option)
+                                                  args.samples, args.gpu, args.quiet, args.model, args.recombine_option, args.hierarchy_size)
         for name in metrics_all[0].keys():
             metrics_hist[name].append(metrics_all[0][name])
         for name in metrics_all[1].keys():
@@ -119,12 +119,12 @@ def early_stop(metrics_hist, criterion, patience):
 
 
 def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, concepts_file, version, testing, dicts, model_dir,
-              samples, gpu, quiet, model_name, recombine_option):
+              samples, gpu, quiet, model_name, recombine_option, hierarchy_size):
     """
         Wrapper to do a training epoch and test on dev
     """
     if not testing:
-        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name, recombine_option)
+        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name, recombine_option, hierarchy_size)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -153,7 +153,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
 
     #test on dev
     metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
-                   testing, model_name, concepts_file, recombine_option)
+                   testing, model_name, concepts_file, recombine_option, hierarchy_size)
 
     if testing or epoch == n_epochs - 1:
         print("\nevaluating on test")
@@ -168,7 +168,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
     return metrics_all
 
 
-def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name, recombine_option):
+def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu, version, dicts, quiet, model_name, recombine_option, hierarchy_size):
     """
         Training loop.
         output: losses for each example for this iteration
@@ -196,7 +196,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, concepts_file, gpu,
     desc_embed = model.lmbda > 0
 
     model.train()
-    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, weights_matrix, desc_embed=desc_embed, version=version) #TODO: CONV.
+    gen = datasets.data_generator(data_path, concepts_file, dicts, batch_size, num_labels, GRAM, weights_matrix, hierarchy_size, desc_embed=desc_embed, version=version) #TODO: CONV.
 
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, concepts, parents, target, bcm, dm, word_concept_mask, _, code_set, descs = tup
@@ -274,7 +274,7 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
 
 #TODO: UPDATE THIS METHOD**
 #TODO: SUB IN DEV FILE CONCEPTS-- THAT PASSED IN IS TRAIN
-def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name, concepts_file, recombine_option):
+def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing, model_name, concepts_file, recombine_option, hierarchy_size):
     """
         Testing loop.
         Returns metrics
@@ -312,7 +312,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     model.eval()
     #**TODO: UPDATE FOR CONCEPTS**
-    gen = datasets.data_generator(filename, concepts_file, dicts, 1, num_labels, GRAM, weights_matrix, desc_embed=desc_embed, version=version)
+    gen = datasets.data_generator(filename, concepts_file, dicts, 1, num_labels, GRAM, weights_matrix, hierarchy_size, desc_embed=desc_embed, version=version)
 
     for batch_idx, tup in tqdm(enumerate(gen)):
 
@@ -423,6 +423,7 @@ if __name__ == "__main__":
     parser.add_argument("--concepts-file", type=str, required=False, default=None, dest='concepts_file', help='path to file containing extracted cTAKES concepts for train, test, and dev (sep files)')
     #TODO: ADD CAPABILITIES for ICD10
     parser.add_argument("--annotations", type=str, choices=["ICD9", "ICD10", "SNOMED"], required=False, default=None, dest="annotation_type", help="what kind of code format the annotations output from the parser is in")
+    parser.add_argument("--hierarchy-size", type=str, choices=["6", "max_batch", "dynamic"], required=False, default=None, dest="hierarchy_size")
     parser.add_argument("--embed-file", type=str, required=False, dest="embed_file",
                         help="path to a file holding pre-trained embeddings")
     parser.add_argument("--parents-file", type=str, required=False, dest="parents_file",
