@@ -17,11 +17,11 @@ class ProcessedIter(object):
             for row in r:
                 yield (row['TEXT'].split())
 
-def word_embeddings(Y, notes_file, embedding_size, min_count, n_iter):
+def word_embeddings(Y, notes_file, embedding_size, min_count, n_iter, n_workers):
     modelname = "processed_%s.w2v" % (Y)
     sentences = ProcessedIter(Y, notes_file)
 
-    model = w2v.Word2Vec(size=embedding_size, min_count=min_count, workers=4, iter=n_iter)
+    model = w2v.Word2Vec(size=embedding_size, min_count=min_count, workers=n_workers, iter=n_iter)
     print("building word2vec vocab on %s..." % (notes_file))
     
     model.build_vocab(sentences)
