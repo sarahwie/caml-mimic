@@ -13,10 +13,9 @@ class ProcessedIter(object):
 
     def __iter__(self):
         with open(self.filename) as f:
-            r = csv.reader(f)
-            next(r)
+            r = csv.DictReader(f)
             for row in r:
-                yield (row[3].split())
+                yield (row['TEXT'].split())
 
 def word_embeddings(Y, notes_file, embedding_size, min_count, n_iter):
     modelname = "processed_%s.w2v" % (Y)
