@@ -4,8 +4,7 @@ import os
 import multiprocessing
 import datetime
 from tqdm import tqdm
-from dataproc import word_embeddings
-from dataproc import build_vocab
+from dataproc import word_embeddings, build_vocab, extract_wvs
 
 def work(filename):
         with open(filename, 'r') as f:
@@ -83,15 +82,23 @@ def rebuild_vocab():
         vname = '%s/vocab.csv' % MIMIC_3_DIR
         build_vocab.build_vocab(vocab_min, tr, vname)
 
+def resort_vocab():
+
+        df = pd.read_csv('/data/swiegreffe6/sutter_nlp/vocab.csv', header=None)
+        #rewrite out-- this "vocabulary" is really just the same as the index for CHF*
+        df[0].sort_values().reset_index(drop=True).to_csv('/data/swiegreffe6/sutter_nlp/vocab.csv', index=False)
+
 def structure_input_embeddings_matrix():
 
         MIMIC_3_DIR = '/data/swiegreffe6/sutter_nlp'
-        extract_wvs.gensim_to_embeddings('%s/processed_subset_vocab.w2v' % MIMIC_3_DIR, '%s/vocab.csv' % MIMIC_3_DIR, Y)
+        extract_wvs.gensim_to_embeddings('%s/processed_subset_vocab.w2v' % MIMIC_3_DIR, '%s/vocab.csv' % MIMIC_3_DIR, None)
 
 if __name__ == '__main__':
         #reconvert_deid_text_strings()
         #reorder_by_length()
 	#train_word_embeddings()
-        rebuild_vocab()
+        #rebuild_vocab()
+        #resort_vocab()
+        structure_input_embeddings_matrix()
 
         #TODO: NOTE WE LEARNED THE UNK EMBEDDING DURING PRETRAINING**
