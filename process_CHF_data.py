@@ -5,6 +5,7 @@ import multiprocessing
 import datetime
 from tqdm import tqdm
 from dataproc import word_embeddings
+from build_vocab import build_vocab
 
 def work(filename):
         with open(filename, 'r') as f:
@@ -74,7 +75,16 @@ def train_word_embeddings():
         b = datetime.datetime.now().replace(microsecond=0)
         print("Time to process", str(b-a))
 
+def rebuild_vocab():
+
+        vocab_min = 3
+        MIMIC_3_DIR = '/data/swiegreffe6/sutter_nlp'
+        tr = os.path.join(MIMIC_3_DIR, 'deidentified_notes_train_subset_vocab_ORDERED.csv')
+        vname = '%s/vocab.csv' % MIMIC_3_DIR
+        build_vocab.build_vocab(vocab_min, tr, vname)
+
 if __name__ == '__main__':
         #reconvert_deid_text_strings()
         #reorder_by_length()
-	train_word_embeddings()
+	#train_word_embeddings()
+        rebuild_vocab()
