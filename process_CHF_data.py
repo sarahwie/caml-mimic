@@ -4,7 +4,7 @@ import os
 import multiprocessing
 import datetime
 from tqdm import tqdm
-from dataproc import word_embeddings, build_vocab, extract_wvs
+from dataproc import word_embeddings, build_vocab, extract_CHF_wvs
 
 def work(filename):
         with open(filename, 'r') as f:
@@ -91,7 +91,7 @@ def resort_vocab():
 def structure_input_embeddings_matrix():
 
         MIMIC_3_DIR = '/data/swiegreffe6/sutter_nlp'
-        extract_wvs.gensim_to_embeddings('%s/processed_subset_vocab.w2v' % MIMIC_3_DIR, '%s/vocab.csv' % MIMIC_3_DIR, None)
+        extract_CHF_wvs.gensim_to_embeddings('%s/processed_subset_vocab.w2v' % MIMIC_3_DIR, '%s/vocab.csv' % MIMIC_3_DIR, None)
 
 if __name__ == '__main__':
         #reconvert_deid_text_strings()
