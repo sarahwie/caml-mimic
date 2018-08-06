@@ -24,8 +24,8 @@ def gensim_to_embeddings(wv_file, vocab_file, Y, outfile=None):
         for i,line in enumerate(vocabfile):
             line = line.strip()
             if line != '':
-                vocab.add(line)
-    ind2w = {i+1:w for i,w in enumerate(sorted(int(vocab)))}
+                vocab.add(int(line))
+    ind2w = {i+1:w for i,w in enumerate(sorted(vocab))}
 
     W, words = build_matrix(ind2w, wv)
 
