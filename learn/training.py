@@ -158,7 +158,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
     if testing or epoch == n_epochs - 1:
         print("\nevaluating on test")
         metrics_te = test(model, Y, epoch, data_path, "test", gpu, version, unseen_code_inds, dicts, samples, 
-                          model_dir, True, model_name, concepts_file, recombine_option)
+                          model_dir, True, model_name, concepts_file, recombine_option, hierarchy_size)
     else:
         metrics_te = defaultdict(float)
         fpr_te = defaultdict(lambda: [])
