@@ -54,7 +54,7 @@ def pick_model(args, dicts):
 
         #TODO: ADD CONVERSION FOR ICD9 HERE
 
-    if args.test_model:
+    if args.test_model or args.reload_model:
 
         sd = torch.load(args.test_model)
 

@@ -467,6 +467,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, choices=['mimic2', 'mimic3'], dest="version", default='mimic3', required=False,
                         help="version of MIMIC in use (default: mimic3)")
     parser.add_argument("--test-model", type=str, dest="test_model", required=False, help="path to a saved model to load and evaluate")
+    parser.add_argument("--reload-model", type=str, dest="reload_model", required=False, help="path to model to continue training from")
     parser.add_argument("--criterion", type=str, default='f1_micro', required=False, dest="criterion",
                         help="which metric to use for early stopping (default: f1_micro)")
     parser.add_argument("--patience", type=int, default=3, required=False,
