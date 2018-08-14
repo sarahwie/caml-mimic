@@ -25,6 +25,8 @@ import persistence
 import learn.models as models
 import learn.tools as tools
 
+import git
+
 def main(args):
     print(args.annotation_type)
     start = time.time()
@@ -76,6 +78,15 @@ def train_epochs(args, model, optimizer, params, dicts):
         if epoch == 0 and not args.test_model:
             model_dir = os.path.join(MODEL_DIR, '_'.join([args.model, time.strftime('%b_%d_%H:%M', time.localtime())]))
             os.mkdir(model_dir)
+
+            #save model versioning (git) info:
+            repo = git.Repo(search_parent_directories=True)
+            branch = repo.active_branch.name
+            print("branch:", branch)
+            sha = repo.head.object.hexsha
+            print("SHA hash:", sha) 
+            persistence.save_git_versioning_info(model_dir, (branch, sha, args.description))
+
         elif args.test_model:
             model_dir = os.path.dirname(os.path.abspath(args.test_model))
 

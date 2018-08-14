@@ -292,7 +292,7 @@ def proc_f1(proc_preds, proc_golds, ind2p, hadm_ids):
     return micro_f1(yhat_proc.ravel(), y_proc.ravel())
 
 def metrics_from_dicts(preds, golds, mdir, ind2c):
-    with open('%s/pred_100_scores_test.json' % mdir, 'r') as f:
+    with open('%s/pred_all_test.json' % mdir, 'r') as f:
         scors = json.load(f)
 
     hadm_ids = sorted(set(golds.keys()).intersection(set(preds.keys())))
