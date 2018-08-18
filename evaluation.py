@@ -9,7 +9,7 @@ import numpy as np
 import os
 import sys
 
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from tqdm import tqdm
 
 from constants import *
@@ -174,27 +174,40 @@ def auc_metrics(yhat_raw, y, ymic):
     roc_auc = {}
     #get AUC for each label individually
     relevant_labels = []
+    relevant_labels_pr = []
     auc_labels = {}
     for i in range(y.shape[1]):
         #only if there are true positives for this label
         if y[:,i].sum() > 0:
             fpr[i], tpr[i], _ = roc_curve(y[:,i], yhat_raw[:,i])
+            prec[i], rec[i], _ = precision_recall_curve(y[:,i], yhat_raw[:,i])
             if len(fpr[i]) > 1 and len(tpr[i]) > 1:
                 auc_score = auc(fpr[i], tpr[i])
                 if not np.isnan(auc_score): 
                     auc_labels["auc_%d" % i] = auc_score
                     relevant_labels.append(i)
+            if len(prec[i]) > 1 and len(rec[i]) > 1:
+                auc_pr = auc(rec[i], prec[i])
+                if not np.isnan(auc_pr): 
+                    auc_labels["aucpr_%d" % i] = auc_pr
+                    relevant_labels_pr.append(i)
 
     #macro-AUC: just average the auc scores
     aucs = []
+    aucs_pr = []
     for i in relevant_labels:
         aucs.append(auc_labels['auc_%d' % i])
+    for i in relevant_labels_pr:
+        aucs_pr.append(auc_labels['aucpr_%d' % i])
     roc_auc['auc_macro'] = np.mean(aucs)
+    roc_auc['aucpr_macro'] = np.mean(aucs_pr)
 
     #micro-AUC: just look at each individual prediction
     yhatmic = yhat_raw.ravel()
     fpr["micro"], tpr["micro"], _ = roc_curve(ymic, yhatmic) 
+    prec["micro"], rec["micro"], _ = precision_recall_curve(ymic, yhatmic)
     roc_auc["auc_micro"] = auc(fpr["micro"], tpr["micro"])
+    roc_auc["aucpr_micro"] = auc(rec["micro"], prec["micro"])
 
     return roc_auc
 
