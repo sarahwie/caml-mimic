@@ -64,12 +64,12 @@ def pick_model(args, dicts):
         model.load_state_dict(sd)
 
     elif args.reload_model:
-	sd = torch.load(args.reload_model)
+        sd = torch.load(args.reload_model)
 
         if args.model == "conv_attn_plus_GRAM":
             assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
 
-	model.load_state_dict(sd)
+        model.load_state_dict(sd)
 
     if args.gpu:
         model.cuda()
