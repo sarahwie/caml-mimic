@@ -142,9 +142,13 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
         testing = True
         quiet = False
 
-    #test on dev
-    metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
+    if not testing:
+        #test on dev
+        metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
                    testing)
+    else:
+        metrics = defaultdict(float)
+
     if testing or epoch == n_epochs - 1:
         print("\nevaluating on test")
         metrics_te = test(model, Y, epoch, data_path, "test", gpu, version, unseen_code_inds, dicts, samples, 
