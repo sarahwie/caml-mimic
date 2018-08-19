@@ -184,7 +184,7 @@ def auc_metrics(yhat_raw, y, ymic):
         #only if there are true positives for this label
         if y[:,i].sum() > 0:
             fpr[i], tpr[i], _ = roc_curve(y[:,i], yhat_raw[:,i])
-            prec[i], rec[i], _ = precision_recall_curve(y[:,i], yhat_raw[:,i])
+            prec[i], rec[i], _ = precision_recall_curve(y[:,i], yhat_raw[:,i], pos_label=1)
             avg_precision[i] = average_precision_score(y[:,i], yhat_raw[:,i])
             if not np.isnan(avg_precision[i]):
                 auc_labels["avg_precision_%d" % i] = avg_precision[i]
@@ -218,7 +218,7 @@ def auc_metrics(yhat_raw, y, ymic):
     #micro-AUC: just look at each individual prediction
     yhatmic = yhat_raw.ravel()
     fpr["micro"], tpr["micro"], _ = roc_curve(ymic, yhatmic) 
-    prec["micro"], rec["micro"], _ = precision_recall_curve(ymic, yhatmic)
+    prec["micro"], rec["micro"], _ = precision_recall_curve(ymic, yhatmic, pos_label=1)
     roc_auc["auc_micro"] = auc(fpr["micro"], tpr["micro"])
     roc_auc["aucpr_micro"] = auc(rec["micro"], prec["micro"])
     roc_auc['avg_prec_micro'] = average_precision_score(ymic, yhatmic)
