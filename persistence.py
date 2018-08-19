@@ -64,11 +64,11 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
     """
         Save metrics, model, params all in model_dir
     """
-    save_metrics(metrics_hist_all, model_dir)
-    params['model_dir'] = model_dir
-    save_params_dict(params)
-
     if not evaluate:
+        save_metrics(metrics_hist_all, model_dir)
+        params['model_dir'] = model_dir
+        save_params_dict(params)
+
         #save the model with the best criterion metric
         if not np.all(np.isnan(metrics_hist_all[0][criterion])):
             if np.nanargmax(metrics_hist_all[0][criterion]) == len(metrics_hist_all[0][criterion]) - 1:
