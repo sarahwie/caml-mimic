@@ -13,7 +13,7 @@ def concept_iterator(args, notes):
     #get distinct note_ids set
     notes_id_lst = (notes["SUBJECT_ID"].map(str) + '_' + notes["note_id"].map(str)).unique()
     with tqdm(total=notes.shape[0]) as pbar:
-        with open("/PATH/concepts_all_%s.csv" % args.input_dir, "r") as fi:
+        with open(args.input_dir, "r") as fi:
             reader = csv.reader(fi)
             header = next(reader) #store/add header as first line of the file
             arr = pd.DataFrame(columns=header)
@@ -130,20 +130,9 @@ def main(args):
     else:
         cpus = int(args.num_cpus)
 
-    #load note_id de-identifier:
-    notes_deid = pd.read_csv('/path/pn_note_de_id_v1.txt', sep='\t')
-
     #load the parsed notes:
     print("loading in notes files...")
-    notes_test = pd.read_csv('/path/notes_test.csv')
-    notes_dev = pd.read_csv('/path/notes_dev.csv')
-    notes_train = pd.read_csv('/path/notes_train.csv')
-    notes = pd.concat((notes_test, notes_dev, notes_train))
-    notes = pd.merge(notes, notes_deid, left_on='HADM_ID', right_on='note_id_deid')
-    del notes_test
-    del notes_dev
-    del notes_train
-    del notes_deid #free memory
+    notes = pd.read_csv(args.path_to_notes + '%s_full.csv' % args.split)
 
     print("INPUT RECORDS SHAPE:", notes.shape) 
     b = datetime.datetime.now().replace(microsecond=0)
@@ -160,9 +149,9 @@ def main(args):
     rxnorm = manager.Queue()
 
     #specify files to pass in (need this as an arg to process for some reason)----------------------
-    snomed_file = "/path/concept_alignment_matrices/snomed_matrices_%s_MULTIPROC.csv" % args.input_dir
-    rxnorm_file = "/path/concept_alignment_matrices/rxnorm_matrices_%s_MULTIPROC.csv" % args.input_dir
-    icd_file = "/path/concept_alignment_matrices/icd_matrices_%s_MULTIPROC.csv" % args.input_dir
+    snomed_file = args.output_dir + '%s_patient_concepts_matrix_SNOMED.csv' % split
+    rxnorm_file = args.output_dir + '%s_patient_concepts_matrix_RXNORM.csv' % split
+    icd_file = args.output_dir + '%s_patient_concepts_matrix_ICD.csv' % split
 
     #start write processes----------------------------------------------------------------
     writer_process_icd = multiprocessing.Process(target=listener_icd, args=(icd_file, icd))
@@ -208,7 +197,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('input_dir', choices=['dir_001','dir_002', 'TEST'])
-    parser.add_argument('num_cpus', choices=['1','2','3','4','5','6','7','8','9','10','11','12','all'])
+    parser.add_argument('input_dir')
+    parser.add_argument('path_to_notes')
+    parser.add_argument('split')
+    parser.add_argument('num_cpus')
     args = parser.parse_args()
     main(args)
