@@ -11,7 +11,7 @@ import os
 
 def concept_iterator(args, notes):
     #get distinct note_ids set
-    notes_id_lst = (notes["SUBJECT_ID"].map(str) + '_' + notes["note_id"].map(str)).unique()
+    notes_id_lst = (notes["SUBJECT_ID"].map(str) + '_' + notes["HADM_ID"].map(str)).unique()
     with tqdm(total=notes.shape[0]) as pbar:
         with open(args.input_dir, "r") as fi:
             reader = csv.reader(fi)
@@ -26,7 +26,7 @@ def concept_iterator(args, notes):
                     if line[1] != curr_id:
                         if curr_id in notes_id_lst:
                             #new instance- get text and yield older
-                            new_row = notes.loc[notes.note_id == int(curr_id.split('_')[1])]
+                            new_row = notes.loc[notes.HADM_ID == int(curr_id.split('_')[1])]
                             yield arr, new_row
                             pbar.update(1)
                         #else, don't yield, just replace
@@ -38,7 +38,7 @@ def concept_iterator(args, notes):
                 i += 1
             #yield last arr (if we want it)
             if curr_id in notes_id_lst:
-                new_row = notes.loc[notes.note_id == int(curr_id.split('_')[1])]
+                new_row = notes.loc[notes.HADM_ID == int(curr_id.split('_')[1])]
                 yield arr, new_row
                 pbar.update(1)
 
@@ -78,7 +78,7 @@ def work(inpt, snomed, icd, rxnorm):
     #get text for constructing concept arr:
     new_text = new_row.TEXT.iloc[0]
     patient_id = new_row.SUBJECT_ID.iloc[0]
-    deid_note_id = new_row.note_id_deid.iloc[0]
+    deid_note_id = new_row.HADM_ID.iloc[0]
     words = new_text.split()
 
     starting_inxs = [0] + [m.start() + 1 for m in re.finditer(' ', new_text)]
@@ -149,9 +149,9 @@ def main(args):
     rxnorm = manager.Queue()
 
     #specify files to pass in (need this as an arg to process for some reason)----------------------
-    snomed_file = args.output_dir + '%s_patient_concepts_matrix_SNOMED.csv' % split
-    rxnorm_file = args.output_dir + '%s_patient_concepts_matrix_RXNORM.csv' % split
-    icd_file = args.output_dir + '%s_patient_concepts_matrix_ICD.csv' % split
+    snomed_file = args.output_dir + '%s_patient_concepts_matrix_SNOMED.csv' % args.split
+    rxnorm_file = args.output_dir + '%s_patient_concepts_matrix_RXNORM.csv' % args.split
+    icd_file = args.output_dir + '%s_patient_concepts_matrix_ICD.csv' % args.split
 
     #start write processes----------------------------------------------------------------
     writer_process_icd = multiprocessing.Process(target=listener_icd, args=(icd_file, icd))
@@ -198,6 +198,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_dir')
+    parser.add_argument('output_dir')
     parser.add_argument('path_to_notes')
     parser.add_argument('split')
     parser.add_argument('num_cpus')
