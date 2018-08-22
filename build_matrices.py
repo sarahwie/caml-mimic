@@ -60,7 +60,7 @@ def listener_snomed_missed(snomed_file, q):
     while True:
         writer = csv.writer(open(snomed_file, 'ab'))
         line = q.get()
-        if line:
+        if isinstance(line, list):
             writer.writerow(line)
         elif line == 'kill':
             return
@@ -69,7 +69,8 @@ def listener_snomed_ratios(snomed_file, q):
     while True:
         writer = csv.writer(open(snomed_file, 'ab'))
         line = q.get()
-        writer.writerow(line)
+        if isinstance(line, list):
+            writer.writerow(line)
         elif line == 'kill':
             return
 
