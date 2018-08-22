@@ -9,56 +9,32 @@ import argparse
 import multiprocessing
 import os
 
-def concept_iterator(args, notes):
+global concepts_arr
+
+def concept_iterator(notes, sub):
     #get distinct note_ids set
-    notes_id_lst = (notes["SUBJECT_ID"].map(str) + '_' + notes["HADM_ID"].map(str)).unique()
-    with tqdm(total=notes.shape[0]) as pbar:
-        with open(args.input_dir, "r") as fi:
-            reader = csv.reader(fi)
-            header = next(reader) #store/add header as first line of the file
-            arr = pd.DataFrame(columns=header)
-            i = 0
-            for line in reader:
-                if i == 0: #first row
-                    curr_id = line[1] #store id
-                    arr.loc[len(arr)] = line #append to dataframe
-                else:
-                    if line[1] != curr_id:
-                        if curr_id in notes_id_lst:
-                            #new instance- get text and yield older
-                            new_row = notes.loc[notes.HADM_ID == int(curr_id.split('_')[1])]
-                            yield arr, new_row
-                            pbar.update(1)
-                        #else, don't yield, just replace
-                        #reset df and curr_id
-                        arr = pd.DataFrame(columns=header)
-                        curr_id = line[1]
-                    else: #else- still same patient_id, append to df
-                        arr.loc[len(arr)] = line
-                i += 1
-            #yield last arr (if we want it)
-            if curr_id in notes_id_lst:
-                new_row = notes.loc[notes.HADM_ID == int(curr_id.split('_')[1])]
-                yield arr, new_row
-                pbar.update(1)
+    for inx, el in tqdm(notes.iterrows(), total=notes.shape[0]):
+        new_id = str(el["SUBJECT_ID"]) + '_' + str(el["HADM_ID"])
+        arr = sub.loc[sub.patient_id.map(str) == new_id] #get extr concepts subset
+        yield arr, el #note, concepts subset
 
-def listener_icd(icd_file, q):
-    while True:
-        writer = csv.writer(open(icd_file, "ab"))
-        line = q.get()
-        if isinstance(line, list):
-            writer.writerow(line)
-        elif line == 'kill':
-            return
+# def listener_icd(icd_file, q):
+#     while True:
+#         writer = csv.writer(open(icd_file, "ab"))
+#         line = q.get()
+#         if isinstance(line, list):
+#             writer.writerow(line)
+#         elif line == 'kill':
+#             return
 
-def listener_rxnorm(rxnorm_file, q):
-    while True:
-        writer = csv.writer(open(rxnorm_file, "ab"))
-        line = q.get()
-        if isinstance(line, list):
-            writer.writerow(line)
-        elif line == 'kill':
-            return
+# def listener_rxnorm(rxnorm_file, q):
+#     while True:
+#         writer = csv.writer(open(rxnorm_file, "ab"))
+#         line = q.get()
+#         if isinstance(line, list):
+#             writer.writerow(line)
+#         elif line == 'kill':
+#             return
 
 def listener_snomed(snomed_file, q):
     while True:
@@ -69,6 +45,34 @@ def listener_snomed(snomed_file, q):
         elif line == 'kill':
             return
 
+def listener_snomed_concept_arr(snomed_file, q):
+    global concepts_arr
+    concepts_arr = {}
+    while True:
+        line = q.get()
+        assert isinstance(line, list)
+        concepts_arr[line[0]] = line[1]
+        elif line == 'kill':
+            pickle.dump(concepts_arr, open('snomed_file','wb'))
+            return
+
+def listener_snomed_missed(snomed_file, q):
+    while True:
+        writer = csv.writer(open(snomed_file, 'ab'))
+        line = q.get()
+        if line:
+            writer.writerow(line)
+        elif line == 'kill':
+            return
+
+def listener_snomed_ratios(snomed_file, q):
+    while True:
+        writer = csv.writer(open(snomed_file, 'ab'))
+        line = q.get()
+        writer.writerow(line)
+        elif line == 'kill':
+            return
+
 def work(inpt, snomed, icd, rxnorm):
 
     subset, new_row = inpt
@@ -76,23 +80,28 @@ def work(inpt, snomed, icd, rxnorm):
     #BUILD MATRIX HERE
 
     #get text for constructing concept arr:
-    new_text = new_row.TEXT.iloc[0]
-    patient_id = new_row.SUBJECT_ID.iloc[0]
-    deid_note_id = new_row.HADM_ID.iloc[0]
-    words = new_text.split()
+    new_text = new_row.TEXT
+    patient_id = str(new_row.SUBJECT_ID)
+    deid_note_id = str(new_row.HADM_ID)
+    full_id = patient_id + '_' + deid_note_id
+    words = new_text.split()    
 
     starting_inxs = [0] + [m.start() + 1 for m in re.finditer(' ', new_text)]
     ending_inxs = [m.end() - 1 for m in re.finditer(' ', new_text)] + [len(new_text)]
 
     #build matrices for different codetypes
-    snomed_mat, missed_snomed = build(['SNOMEDCT_US'], subset, words, starting_inxs, ending_inxs, new_text)
-    rxnorm_mat, missed_rxnorm = build(['RXNORM'], subset, words, starting_inxs, ending_inxs, new_text)
-    icd_mat, missed_icd = build(['ICD9CM', 'ICD10CM'], subset, words, starting_inxs, ending_inxs, new_text)
+    snomed_mat, missed_snomed, found_snomed, concept_arr = build(['SNOMEDCT_US'], subset, words, starting_inxs, ending_inxs, new_text)
+    #rxnorm_mat, missed_rxnorm = build(['RXNORM'], subset, words, starting_inxs, ending_inxs, new_text)
+    #icd_mat, missed_icd = build(['ICD9CM', 'ICD10CM'], subset, words, starting_inxs, ending_inxs, new_text)
 
     #put matrices on queue
     snomed.put([patient_id, deid_note_id, snomed_mat, len(words)])
-    rxnorm.put([patient_id, deid_note_id, rxnorm_mat, len(words)])
-    icd.put([patient_id, deid_note_id, icd_mat, len(words)])
+    snomed_concept_arr.put([full_id, concept_arr])
+    if missed_snomed:
+        snomed_missed.put([missed_snomed])
+    snomed_cnts.put([len(missed_snomed)/float(found_snomed)])
+    # rxnorm.put([patient_id, deid_note_id, rxnorm_mat, len(words)])
+    # icd.put([patient_id, deid_note_id, icd_mat, len(words)])
 
 def build(labeltype, sub, words, starting_inxs, ending_inxs, new_text):
 
@@ -100,25 +109,22 @@ def build(labeltype, sub, words, starting_inxs, ending_inxs, new_text):
     subset = sub.loc[sub.codingScheme.isin(labeltype)]
 
     #USE SUBSETS TO CONSTRUCT MATRICES**
-    missed = 0
+    missed = set()
     for _, row in subset.iterrows():
-            for m in re.finditer(row['word_phrase'].lower(), new_text):
-                #assert new_text[m.start():m.end()] == old_text[row['begin_inx']:row['end_inx']].lower()
-                assert new_text[m.start():m.end()] == row['word_phrase'].lower()
-                # write code to position in array
-                if m.start() not in starting_inxs or m.end() not in ending_inxs:
-                    # print("MISMATCH")
-                    # print(m.start(), m.end(), new_text[m.start():m.end()])
-                    missed += 1
-                else:
-                    start = starting_inxs.index(m.start())
-                    end = ending_inxs.index(m.end())
-                    for el in range(start, end+1):
-                        concept_arr[el].add(row['code'])
+        # write code to position in array
+        if row['begin_inx'] not in starting_inxs or row['end_inx'] not in ending_inxs:
+            missed.add(row['word_phrase'], new_text[row['begin_inx']:row['end_inx']])
+        else:
+            assert new_text[row['begin_inx']:row['end_inx']] == row['word_phrase']
+            start = starting_inxs.index(row['begin_inx'])
+            end = ending_inxs.index(row['end_inx'])
+            for el in range(start, end+1):
+                concept_arr[el].add(row['code'])
 
     #convert to string
     c = ' '.join([';'.join(el) if el else 'None' for el in concept_arr])
-    return c, missed
+    found = len([el for el in concept_arr if el])
+    return c, missed, found, concept_arr
 
 def main(args):
 
@@ -132,42 +138,64 @@ def main(args):
 
     #load the parsed notes:
     print("loading in notes files...")
-    notes = pd.read_csv(args.path_to_notes + '%s_full.csv' % args.split)
+    print("READING NOTES FROM", args.input_dir.replace('train', split))
+    notes = pd.read_csv(open(args.input_dir.replace('train', split), 'r'))
+    print("Shape of notes file:", notes.shape)
 
-    print("INPUT RECORDS SHAPE:", notes.shape) 
+    #get concepts here
+    print("READING CONCEPTS FROM", args.concepts_dir.replace('train', split))
+    df_CONCEPTS = pd.read_csv(args.path_to_concepts)
+    print("Shape of concepts file:", df_CONCEPTS.shape)
+
     b = datetime.datetime.now().replace(microsecond=0)
-    print("Time to load notes:", str(b - a))
+    print("Time to load notes & concepts:", str(b - a))
 
     a = datetime.datetime.now().replace(microsecond=0)
     #initialize the concept iterator
-    el = concept_iterator(args, notes)
+    el = concept_iterator(notes, df_CONCEPTS)
 
     #setup writing queues for each codetype--------------------------------------------------------
     manager = multiprocessing.Manager()
     snomed = manager.Queue()
-    icd = manager.Queue()
-    rxnorm = manager.Queue()
+    snomed_concept_arr = manager.Queue()
+    snomed_missed = manager.Queue()
+    snomed_cnts = manager.Queue()
+    #icd = manager.Queue()
+    #rxnorm = manager.Queue()
 
     #specify files to pass in (need this as an arg to process for some reason)----------------------
-    snomed_file = args.output_dir + '%s_patient_concepts_matrix_SNOMED.csv' % args.split
-    rxnorm_file = args.output_dir + '%s_patient_concepts_matrix_RXNORM.csv' % args.split
-    icd_file = args.output_dir + '%s_patient_concepts_matrix_ICD.csv' % args.split
+    snomed_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.csv').replace('train', split)
+    concepts_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.p').replace('train', split)
+    missed_file = os.path.join(args.output_dir, 'missed_concepts_train.csv').replace('train', split)
+    ratios_file = os.path.join(args.output_dir, 'train_ratios_missed.txt').replace('train', split)
+    #rxnorm_file = args.output_dir.replace('train', split).replace('SNOMED', 'RXNORM')
+    #icd_file = args.output_dir.replace('train', split).replace('SNOMED', 'ICD')
 
     #start write processes----------------------------------------------------------------
-    writer_process_icd = multiprocessing.Process(target=listener_icd, args=(icd_file, icd))
-    writer_process_icd.start()
+    #writer_process_icd = multiprocessing.Process(target=listener_icd, args=(icd_file, icd))
+    #writer_process_icd.start()
 
-    writer_process_rxnorm = multiprocessing.Process(target=listener_rxnorm, args=(rxnorm_file, rxnorm))
-    writer_process_rxnorm.start()
+    #writer_process_rxnorm = multiprocessing.Process(target=listener_rxnorm, args=(rxnorm_file, rxnorm))
+    #writer_process_rxnorm.start()
 
     writer_process_snomed = multiprocessing.Process(target=listener_snomed, args=(snomed_file, snomed))
+    writer_process_concept_arr = multiprocessing.Process(target=listener_snomed_concept_arr, args=(concepts_file, snomed_concept_arr))
+    writer_process_missed = multiprocessing.Process(target=listener_snomed_missed, args=(missed_file, snomed_missed))
+    writer_process_ratios = multiprocessing.Process(target=listener_snomed_ratios, args=(ratios_file, snomed_cnts))
+
     writer_process_snomed.start()
+    writer_process_concept_arr.start()
+    writer_process_missed.start()
+    writer_process_ratios.start()
+
 
     #write headers to queue----------------------------------------------------------------
     header_df = ['SUBJECT_ID', 'HADM_ID', 'matrix', 'length']
     snomed.put(header_df)
-    icd.put(header_df)
-    rxnorm.put(header_df)
+    #icd.put(header_df)
+    #rxnorm.put(header_df)
+    icd = None
+    rxnorm = None
 
     #SPAWN PROCESSES FROM EACH PATIENT DIR**------------------------------------------------
     threads = []
@@ -186,11 +214,17 @@ def main(args):
 
     #finish write
     snomed.put('kill')
-    icd.put('kill')
-    rxnorm.put('kill')
-    writer_process_rxnorm.join()
+    snomed_concept_arr.put('kill')
+    snomed_missed.put('kill')
+    snomed_cnts.put('kill')
+    #icd.put('kill')
+    #rxnorm.put('kill')
+    #writer_process_rxnorm.join()
     writer_process_snomed.join()
-    writer_process_icd.join()
+    writer_process_concept_arr.join()
+    writer_process_missed.join()
+    writer_process_ratios.join()
+    #writer_process_icd.join()
 
     b = datetime.datetime.now().replace(microsecond=0)
     print("Time to process:", str(b - a))
@@ -198,9 +232,13 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_dir')
+    parser.add_argument('concepts_dir')
     parser.add_argument('output_dir')
-    parser.add_argument('path_to_notes')
     parser.add_argument('split')
     parser.add_argument('num_cpus')
     args = parser.parse_args()
     main(args)
+
+#python build_matrices.py /data/swiegreffe6/NEW_MIMIC/mimic3/train_full.csv /data/swiegreffe6/NEW_MIMIC/patient_notes/concepts_train_ALL.csv /data/swiegreffe6/NEW_MIMIC/extracted_concepts/recomputed/ train 22
+
+
