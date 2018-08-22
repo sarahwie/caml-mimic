@@ -50,8 +50,8 @@ def listener_snomed_concept_arr(snomed_file, q):
     concepts_arr = {}
     while True:
         line = q.get()
-        assert isinstance(line, list)
-        concepts_arr[line[0]] = line[1]
+        if isinstance(line, list):
+            concepts_arr[line[0]] = line[1]
         elif line == 'kill':
             pickle.dump(concepts_arr, open('snomed_file','wb'))
             return
