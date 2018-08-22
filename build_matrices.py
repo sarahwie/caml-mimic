@@ -14,9 +14,8 @@ global concepts_arr
 def concept_iterator(notes, sub):
     #get distinct note_ids set
     for inx, el in tqdm(notes.iterrows(), total=notes.shape[0]):
-        new_id = str(el["SUBJECT_ID"]) + '_' + str(el["HADM_ID"])
-        arr = sub.loc[sub.patient_id.map(str) == new_id] #get extr concepts subset
-        yield arr, el #note, concepts subset
+         #get extr concepts subset
+        yield el #note, concepts subset
 
 # def listener_icd(icd_file, q):
 #     while True:
@@ -38,7 +37,7 @@ def concept_iterator(notes, sub):
 
 def listener_snomed(snomed_file, q):
     while True:
-        writer = csv.writer(open(snomed_file, 'ab'))
+        writer = csv.writer(open(snomed_file, 'ab+'))
         line = q.get()
         if isinstance(line, list):
             writer.writerow(line)
@@ -53,12 +52,12 @@ def listener_snomed_concept_arr(snomed_file, q):
         if isinstance(line, list):
             concepts_arr[line[0]] = line[1]
         elif line == 'kill':
-            pickle.dump(concepts_arr, open('snomed_file','wb'))
+            pickle.dump(concepts_arr, open(snomed_file,'wb'))
             return
 
 def listener_snomed_missed(snomed_file, q):
     while True:
-        writer = csv.writer(open(snomed_file, 'ab'))
+        writer = csv.writer(open(snomed_file, 'ab+'))
         line = q.get()
         if isinstance(line, list):
             writer.writerow(line)
@@ -67,16 +66,18 @@ def listener_snomed_missed(snomed_file, q):
 
 def listener_snomed_ratios(snomed_file, q):
     while True:
-        writer = csv.writer(open(snomed_file, 'ab'))
+        writer = csv.writer(open(snomed_file, 'ab+'))
         line = q.get()
         if isinstance(line, list):
             writer.writerow(line)
         elif line == 'kill':
             return
 
-def work(inpt, snomed, icd, rxnorm):
+def work(inpt, snomed, snomed_concept_arr, snomed_missed, snomed_cnts):
 
-    subset, new_row = inpt
+    df_CONCEPTS, new_row = inpt
+    new_id = str(new_row["SUBJECT_ID"]) + '_' + str(new_row["HADM_ID"])
+    subset = df_CONCEPTS.loc[df_CONCEPTS.patient_id.map(str) == new_id]
 
     #BUILD MATRIX HERE
 
@@ -139,13 +140,13 @@ def main(args):
 
     #load the parsed notes:
     print("loading in notes files...")
-    print("READING NOTES FROM", args.input_dir.replace('train', split))
-    notes = pd.read_csv(open(args.input_dir.replace('train', split), 'r'))
+    print("READING NOTES FROM", args.input_dir.replace('train', args.split))
+    notes = pd.read_csv(open(args.input_dir.replace('train', args.split), 'r'))
     print("Shape of notes file:", notes.shape)
 
     #get concepts here
-    print("READING CONCEPTS FROM", args.concepts_dir.replace('train', split))
-    df_CONCEPTS = pd.read_csv(args.path_to_concepts)
+    print("READING CONCEPTS FROM", args.concepts_dir.replace('train', args.split))
+    df_CONCEPTS = pd.read_csv(args.concepts_dir)
     print("Shape of concepts file:", df_CONCEPTS.shape)
 
     b = datetime.datetime.now().replace(microsecond=0)
@@ -165,12 +166,16 @@ def main(args):
     #rxnorm = manager.Queue()
 
     #specify files to pass in (need this as an arg to process for some reason)----------------------
-    snomed_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.csv').replace('train', split)
-    concepts_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.p').replace('train', split)
-    missed_file = os.path.join(args.output_dir, 'missed_concepts_train.csv').replace('train', split)
-    ratios_file = os.path.join(args.output_dir, 'train_ratios_missed.txt').replace('train', split)
-    #rxnorm_file = args.output_dir.replace('train', split).replace('SNOMED', 'RXNORM')
-    #icd_file = args.output_dir.replace('train', split).replace('SNOMED', 'ICD')
+    snomed_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.csv').replace('train', args.split)\
+    concepts_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.p').replace('train', args.split)
+    missed_file = os.path.join(args.output_dir, 'missed_concepts_train.csv').replace('train', args.split)
+    ratios_file = os.path.join(args.output_dir, 'train_ratios_missed.txt').replace('train', args.split)
+    #rxnorm_file = args.output_dir.replace('train', args.split).replace('SNOMED', 'RXNORM')
+    #icd_file = args.output_dir.replace('train', args.split).replace('SNOMED', 'ICD')
+    assert not os.path.isfile(snomed_file)
+    assert not os.path.isfile(concepts_file)
+    assert not os.path.isfile(missed_file)
+    assert not os.path.isfile(ratios_file) 
 
     #start write processes----------------------------------------------------------------
     #writer_process_icd = multiprocessing.Process(target=listener_icd, args=(icd_file, icd))
@@ -204,7 +209,7 @@ def main(args):
     elNext = next(el, None)
     while threads or elNext is not None:
         if (len(threads) < cpus) and elNext is not None:
-            p = multiprocessing.Process(target=work, args=[elNext, snomed, icd, rxnorm])
+            p = multiprocessing.Process(target=work, args=[elNext, snomed, snomed_concept_arr, snomed_missed, snomed_cnts])
             p.start()
             threads.append(p)
             elNext = next(el, None)
