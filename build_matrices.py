@@ -78,6 +78,7 @@ def work(inpt, snomed, snomed_concept_arr, snomed_missed, snomed_cnts):
     df_CONCEPTS, new_row = inpt
     new_id = str(new_row["SUBJECT_ID"]) + '_' + str(new_row["HADM_ID"])
     subset = df_CONCEPTS.loc[df_CONCEPTS.patient_id.map(str) == new_id]
+    #del df_CONCEPTS
 
     #BUILD MATRIX HERE
 
@@ -115,7 +116,7 @@ def build(labeltype, sub, words, starting_inxs, ending_inxs, new_text):
     for _, row in subset.iterrows():
         # write code to position in array
         if row['begin_inx'] not in starting_inxs or row['end_inx'] not in ending_inxs:
-            missed.add(row['word_phrase'], new_text[row['begin_inx']:row['end_inx']])
+            missed.add((row['word_phrase'], new_text[row['begin_inx']:row['end_inx']]))
         else:
             assert new_text[row['begin_inx']:row['end_inx']] == row['word_phrase']
             start = starting_inxs.index(row['begin_inx'])
@@ -146,7 +147,7 @@ def main(args):
 
     #get concepts here
     print("READING CONCEPTS FROM", args.concepts_dir.replace('train', args.split))
-    df_CONCEPTS = pd.read_csv(args.concepts_dir)
+    df_CONCEPTS = pd.read_csv(args.concepts_dir.replace('train', args.split))
     print("Shape of concepts file:", df_CONCEPTS.shape)
 
     b = datetime.datetime.now().replace(microsecond=0)
@@ -166,7 +167,7 @@ def main(args):
     #rxnorm = manager.Queue()
 
     #specify files to pass in (need this as an arg to process for some reason)----------------------
-    snomed_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.csv').replace('train', args.split)\
+    snomed_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.csv').replace('train', args.split)
     concepts_file = os.path.join(args.output_dir, 'train_patient_concepts_matrix_SNOMED.p').replace('train', args.split)
     missed_file = os.path.join(args.output_dir, 'missed_concepts_train.csv').replace('train', args.split)
     ratios_file = os.path.join(args.output_dir, 'train_ratios_missed.txt').replace('train', args.split)
