@@ -1,4 +1,4 @@
-save_metrics(metrics_hist_all, model_dir)"""
+"""
     Saving relevant things.
 """
 import csv
