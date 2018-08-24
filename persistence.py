@@ -51,11 +51,11 @@ def write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw=None):
     if fold != 'train' and yhat_raw is not None:
         #write top 100 scores so we can re-do @k metrics later
         #top 100 only - saving the full set of scores is very large (~1G for mimic-3 full test set)
-        scores_file = '%s/pred_all_%s.json' % (model_dir, fold)
+        scores_file = '%s/pred_100_scores_%s.json' % (model_dir, fold)
         scores = {}
         sortd = np.argsort(yhat_raw)[:,::-1]
         for i,(top_idxs, hid) in enumerate(zip(sortd, hids)):
-            scores[int(hid)] = {ind2c[idx]: float(yhat_raw[i][idx]) for idx in top_idxs}
+            scores[int(hid)] = {ind2c[idx]: float(yhat_raw[i][idx]) for idx in top_idxs[:100]}
         with open(scores_file, 'w') as f:
             json.dump(scores, f, indent=1)
     return preds_file
