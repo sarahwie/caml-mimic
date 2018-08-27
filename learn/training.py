@@ -66,7 +66,6 @@ def train_epochs(args, model, optimizer, params, dicts):
     metrics_hist = defaultdict(lambda: [])
     metrics_hist_te = defaultdict(lambda: [])
     metrics_hist_tr = defaultdict(lambda: [])
-    
     META_TEST = args.test_model is not None
     test_only = args.test_model is not None
     evaluate = args.test_model is not None
@@ -99,6 +98,7 @@ def train_epochs(args, model, optimizer, params, dicts):
         metrics_hist_all = (metrics_hist, metrics_hist_te, metrics_hist_tr)
 
         #save metrics, model, params
+        assert '-' not in args.criterion
         persistence.save_everything(args, metrics_hist_all, model, model_dir, params, args.criterion, evaluate)
 
         if test_only:
@@ -129,6 +129,7 @@ def early_stop(metrics_hist, criterion, patience):
         
 def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, version, testing, dicts, model_dir, 
               samples, gpu, quiet, META_TEST):
+
     """
         Wrapper to do a training epoch and test on dev
     """
