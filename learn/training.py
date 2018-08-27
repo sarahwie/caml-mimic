@@ -70,6 +70,7 @@ def train_epochs(args, model, optimizer, params, dicts):
     metrics_hist_te = defaultdict(lambda: [])
     metrics_hist_tr = defaultdict(lambda: [])
 
+    META_TEST = args.test_model is not None
     test_only = args.test_model is not None
     evaluate = args.test_model is not None
     #train for n_epochs unless criterion metric does not improve for [patience] epochs
@@ -92,7 +93,7 @@ def train_epochs(args, model, optimizer, params, dicts):
 
         metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path, args.concepts_file,
                                                   args.version, test_only, dicts, model_dir, 
-                                                  args.samples, args.gpu, args.quiet, args.model, args.recombine_option, args.hierarchy_size)
+                                                  args.samples, args.gpu, args.quiet, args.model, args.recombine_option, args.hierarchy_size, META_TEST)
         for name in metrics_all[0].keys():
             metrics_hist[name].append(metrics_all[0][name])
         for name in metrics_all[1].keys():
@@ -102,6 +103,7 @@ def train_epochs(args, model, optimizer, params, dicts):
         metrics_hist_all = (metrics_hist, metrics_hist_te, metrics_hist_tr)
 
         #save metrics, model, params
+        assert '-' not in args.criterion
         persistence.save_everything(args, metrics_hist_all, model, model_dir, params, args.criterion, evaluate)
 
         if test_only:
@@ -120,7 +122,7 @@ def train_epochs(args, model, optimizer, params, dicts):
 
 def early_stop(metrics_hist, criterion, patience):
     if not np.all(np.isnan(metrics_hist[criterion])):
-        if criterion == 'loss-dev': 
+        if criterion == 'loss_dev': 
             return np.nanargmin(metrics_hist[criterion]) > len(metrics_hist[criterion]) - patience
         else:
             return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
@@ -130,7 +132,7 @@ def early_stop(metrics_hist, criterion, patience):
 
 
 def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, concepts_file, version, testing, dicts, model_dir,
-              samples, gpu, quiet, model_name, recombine_option, hierarchy_size):
+              samples, gpu, quiet, model_name, recombine_option, hierarchy_size, META_TEST):
     """
         Wrapper to do a training epoch and test on dev
     """
@@ -162,7 +164,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, conce
         testing = True
         quiet = False
 
-    if not testing:
+    if not META_TEST:
         #test on dev
         metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
                    testing, model_name, concepts_file, recombine_option, hierarchy_size)

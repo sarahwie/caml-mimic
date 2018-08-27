@@ -81,4 +81,4 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
                 torch.save(sd, model_dir + "/model_best_%s.pth" % criterion)
                 if args.gpu:
                     model.cuda()
-    print("saved metrics, params, model to directory %s\n" % (model_dir))
+        print("saved metrics, params, model to directory %s\n" % (model_dir))
