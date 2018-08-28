@@ -18,7 +18,7 @@ import numpy as np
 
 import git
 
-def pick_model(args, dicts):
+def pick_model(args, dicts, META_TEST):
     """
         Use args to initialize the appropriate model
     """
@@ -58,12 +58,14 @@ def pick_model(args, dicts):
 
     if args.test_model:
 
-        repo = git.Repo(search_parent_directories=True)
-        head, _ = os.path.split(args.test_model)
-        with open(os.path.join(head, 'git_info.txt'), 'r') as f:
-            assert f.readline().split()[1] == repo.active_branch.name #first line: branchname
-            assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
-
+        if META_TEST: #if loading a test model from file**
+            repo = git.Repo(search_parent_directories=True)
+            head, _ = os.path.split(args.test_model)
+            with open(os.path.join(head, 'git_info.txt'), 'r') as f:
+                assert f.readline().split()[1] == repo.active_branch.name #first line: branchname
+                assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
+        #but don't check if only loading a model during training deploy**
+        
         sd = torch.load(args.test_model)
 
         if args.model == "conv_attn_plus_GRAM":
@@ -73,6 +75,7 @@ def pick_model(args, dicts):
 
     elif args.reload_model:
 
+        #if reloading a model**
         repo = git.Repo(search_parent_directories=True)
         head, _ = os.path.split(args.test_model)
         with open(os.path.join(head, 'git_info.txt'), 'r') as f:

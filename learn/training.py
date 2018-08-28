@@ -116,7 +116,7 @@ def train_epochs(args, model, optimizer, params, dicts):
                 print("%s hasn't improved in %d epochs, early stopping..." % (args.criterion, args.patience))
                 test_only = True
                 args.test_model = '%s/model_best_%s.pth' % (model_dir, args.criterion)
-                model = tools.pick_model(args, dicts)
+                model = tools.pick_model(args, dicts, META_TEST)
     return epoch+1
 
 
