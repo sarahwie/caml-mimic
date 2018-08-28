@@ -22,6 +22,13 @@ def save_params_dict(params):
     with open(params["model_dir"] + "/params.json", 'w') as params_file:
         json.dump(params, params_file, indent=1)
 
+def save_git_versioning_info(model_dir, info):
+    with open(model_dir + "/git_info.txt", 'w') as f:
+        f.write("Branch: " + info[0] + '\n')
+        f.write("SHA: " + info[1] + '\n')
+        f.write("Provided description: " + info[2] + '\n')
+           
+
 def write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw=None):
     """
         INPUTS:
@@ -58,7 +65,6 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
         Save metrics, model, params all in model_dir
     """
     if not evaluate:
-        
         save_metrics(metrics_hist_all, model_dir)
         params['model_dir'] = model_dir
         save_params_dict(params)
@@ -68,7 +74,11 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
             if np.nanargmax(metrics_hist_all[0][criterion]) == len(metrics_hist_all[0][criterion]) - 1:
                 #save state dict
                 sd = model.cpu().state_dict()
+
+                if args.model == 'conv_attn_plus_GRAM':
+                    assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
+
                 torch.save(sd, model_dir + "/model_best_%s.pth" % criterion)
                 if args.gpu:
                     model.cuda()
-    print("saved metrics, params, model to directory %s\n" % (model_dir))
+        print("saved metrics, params, model to directory %s\n" % (model_dir))

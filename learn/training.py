@@ -25,11 +25,15 @@ import persistence
 import learn.models as models
 import learn.tools as tools
 
+import git
+
 def main(args):
+    assert '-' not in args.criterion
+    print(args.annotation_type)
     start = time.time()
     args, model, optimizer, params, dicts = init(args)
     epochs_trained = train_epochs(args, model, optimizer, params, dicts)
-    print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS: %f" % (args.model, epochs_trained, time.time() - start))
+    print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS (hours): %f" % (args.model, epochs_trained, ((time.time() - start)/60/60)))
 
 def init(args):
     """
@@ -43,7 +47,8 @@ def init(args):
     print("loading lookups...")
     dicts = datasets.load_lookups(args, desc_embed=desc_embed)
 
-    model = tools.pick_model(args, dicts)
+    META_TEST = args.test_model is not None
+    model = tools.pick_model(args, dicts, META_TEST)
     print(model)
 
     if not args.test_model:
@@ -62,7 +67,8 @@ def train_epochs(args, model, optimizer, params, dicts):
     metrics_hist = defaultdict(lambda: [])
     metrics_hist_te = defaultdict(lambda: [])
     metrics_hist_tr = defaultdict(lambda: [])
-
+    
+    META_TEST = args.test_model is not None
     test_only = args.test_model is not None
     evaluate = args.test_model is not None
     #train for n_epochs unless criterion metric does not improve for [patience] epochs
@@ -71,11 +77,20 @@ def train_epochs(args, model, optimizer, params, dicts):
         if epoch == 0 and not args.test_model:
             model_dir = os.path.join(MODEL_DIR, '_'.join([args.model, time.strftime('%b_%d_%H:%M', time.localtime())]))
             os.mkdir(model_dir)
+
+            #save model versioning (git) info:
+            repo = git.Repo(search_parent_directories=True)
+            branch = repo.active_branch.name
+            print("branch:", branch)
+            sha = repo.head.object.hexsha
+            print("SHA hash:", sha) 
+            persistence.save_git_versioning_info(model_dir, (branch, sha, args.description))
+
         elif args.test_model:
             model_dir = os.path.dirname(os.path.abspath(args.test_model))
         metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path,
                                                   args.version, test_only, dicts, model_dir, 
-                                                  args.samples, args.gpu, args.quiet)
+                                                  args.samples, args.gpu, args.quiet, META_TEST)
         for name in metrics_all[0].keys():
             metrics_hist[name].append(metrics_all[0][name])
         for name in metrics_all[1].keys():
@@ -97,21 +112,22 @@ def train_epochs(args, model, optimizer, params, dicts):
                 print("%s hasn't improved in %d epochs, early stopping..." % (args.criterion, args.patience))
                 test_only = True
                 args.test_model = '%s/model_best_%s.pth' % (model_dir, args.criterion)
-                model = tools.pick_model(args, dicts)
+                model = tools.pick_model(args, dicts, META_TEST)
     return epoch+1
 
 def early_stop(metrics_hist, criterion, patience):
     if not np.all(np.isnan(metrics_hist[criterion])):
-        if criterion == 'loss-dev': 
-            return np.nanargmin(metrics_hist[criterion]) > len(metrics_hist[criterion]) - patience
-        else:
-            return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
+	if len(metrics_hist[criterion]) >= patience:
+        	if criterion == 'loss_dev': 
+            		return np.nanargmin(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
+        	else:
+            		return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
     else:
         #keep training if criterion results have all been nan so far
         return False
         
 def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, version, testing, dicts, model_dir, 
-              samples, gpu, quiet):
+              samples, gpu, quiet, META_TEST):
     """
         Wrapper to do a training epoch and test on dev
     """
@@ -143,7 +159,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
         testing = True
         quiet = False
 
-    if not testing:
+    if not META_TEST:
         #test on dev
         metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
                    testing)
@@ -309,6 +325,7 @@ if __name__ == "__main__":
     parser.add_argument("Y", type=str, help="size of label space")
     parser.add_argument("model", type=str, choices=["cnn_vanilla", "rnn", "conv_attn", "multi_conv_attn", "saved"], help="model")
     parser.add_argument("n_epochs", type=int, help="number of epochs to train")
+    parser.add_argument("--description", type=str, required=False, default="", dest='description', help='provide a description to save with model')
     parser.add_argument("--embed-file", type=str, required=False, dest="embed_file",
                         help="path to a file holding pre-trained embeddings")
     parser.add_argument("--cell-type", type=str, choices=["lstm", "gru"], help="what kind of RNN to use (default: GRU)", dest='cell_type',
@@ -338,6 +355,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, choices=['mimic2', 'mimic3'], dest="version", default='mimic3', required=False,
                         help="version of MIMIC in use (default: mimic3)")
     parser.add_argument("--test-model", type=str, dest="test_model", required=False, help="path to a saved model to load and evaluate")
+    parser.add_argument("--reload-model", type=str, dest="reload_model", required=False, help="path to model to continue training from")
     parser.add_argument("--criterion", type=str, default='f1_micro', required=False, dest="criterion",
                         help="which metric to use for early stopping (default: f1_micro)")
     parser.add_argument("--patience", type=int, default=3, required=False,

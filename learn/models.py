@@ -31,7 +31,10 @@ class BaseModel(nn.Module):
         #make embedding layer
         if embed_file:
             print("loading pretrained embeddings...")
-            W = torch.Tensor(extract_wvs.load_embeddings(embed_file))
+            el, ind = extract_wvs.load_embeddings(embed_file)
+            assert ind == dicts['w2ind'] #assert that the index of the pretrained embeddings file aligns *exactly* with that used to embed the text
+
+            W = torch.Tensor(el)
 
             self.embed = nn.Embedding(W.size()[0], W.size()[1], padding_idx=0)
             self.embed.weight.data = W.clone()
@@ -99,7 +102,9 @@ class ConvAttnPool(BaseModel):
         xavier_uniform(self.conv.weight)
 
         #context vectors for computing attention as in 2.2
-        self.U = nn.Linear(num_filter_maps, Y)
+                #TODO: JAMES HAD BIAS=TRUE HERE-- make a difference?
+
+        self.U = nn.Linear(num_filter_maps, Y, bias=True)
         xavier_uniform(self.U.weight)
 
         #final layer: create a matrix to use for the L binary classifiers as in 2.3
@@ -146,7 +151,7 @@ class ConvAttnPool(BaseModel):
         yhat = F.sigmoid(y)
         loss = self._get_loss(yhat, target, diffs)
         return yhat, loss, alpha
-    
+
 class VanillaConv(BaseModel):
 
     def __init__(self, Y, embed_file, kernel_size, num_filter_maps, gpu=True, dicts=None, embed_size=100, dropout=0.5):

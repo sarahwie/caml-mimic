@@ -22,9 +22,7 @@ def build_vocab(vocab_min, infile, vocab_filename):
             vocab_filename: name for the file to output
     """
     with open(infile, 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        #header
-        next(reader)
+        reader = csv.DictReader(csvfile)
 
         #0. read in data
         print("reading in data...")
@@ -44,7 +42,7 @@ def build_vocab(vocab_min, infile, vocab_filename):
         note_occur = np.zeros(400000, dtype=int)
         i = 0
         for row in reader:
-            text = row[2]
+            text = row['TEXT']
             numwords = 0
             for term in text.split():
                 #put term in vocab if it's not there. else, get the index
@@ -81,6 +79,8 @@ def build_vocab(vocab_min, infile, vocab_filename):
         C = C[inds,:]
         note_occur = note_occur[inds]
         vocab_list = vocab_list[inds]
+
+        print("VOCAB LENGTH", len(vocab_list))
 
         print("writing output")
         with open(vocab_filename, 'w') as vocab_file:

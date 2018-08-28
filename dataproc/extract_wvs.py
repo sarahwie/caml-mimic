@@ -10,6 +10,7 @@ from constants import *
 import datasets
 
 import numpy as np
+import pickle
 
 def gensim_to_embeddings(wv_file, vocab_file, Y, outfile=None):
     model = gensim.models.Word2Vec.load(wv_file)
@@ -44,7 +45,7 @@ def build_matrix(ind2w, wv):
     W[0][:] = np.zeros(len(wv.word_vec(wv.index2word[0])))
     for idx, word in tqdm(ind2w.items()):
         if idx >= W.shape[0]:
-            break    
+            break
         W[idx][:] = wv.word_vec(word)
         words.append(word)
     return W, words
@@ -60,17 +61,21 @@ def save_embeddings(W, words, outfile):
 def load_embeddings(embed_file):
     #also normalizes the embeddings
     W = []
+    vocab = []
     with open(embed_file) as ef:
         for line in ef:
             line = line.rstrip().split()
             vec = np.array(line[1:]).astype(np.float)
-            vec = vec / (np.linalg.norm(vec) + 1e-6)
+            vec = vec / float(np.linalg.norm(vec) + 1e-6)
             W.append(vec)
+            vocab.append(line[0])
         #UNK embedding, gaussian randomly initialized 
         print("adding unk embedding")
         vec = np.random.randn(len(W[-1]))
-        vec = vec / (np.linalg.norm(vec) + 1e-6)
+        vec = vec / float(np.linalg.norm(vec) + 1e-6)
         W.append(vec)
+    vocab = vocab[1:] #we don't care about pad token
     W = np.array(W)
-    return W
+    w2ind = {k:i for i,k in enumerate(vocab,1)}
+    return W, w2ind
 
