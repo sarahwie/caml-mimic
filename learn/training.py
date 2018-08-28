@@ -12,6 +12,7 @@ import numpy as np
 import operator
 import random
 import sys
+sys.path.append('..')
 import time
 from tqdm import tqdm
 from collections import defaultdict
@@ -181,6 +182,9 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
     model.train()
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
+
+	old_word_embeds = model.embed.weight.data.cpu().numpy()
+
         data, target, _, code_set, descs = tup
         data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
         unseen_code_inds = unseen_code_inds.difference(code_set)
@@ -198,6 +202,12 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
 
         loss.backward()
         optimizer.step()
+
+	assert not np.array_equal(model.embed.weight.data.cpu().numpy(), old_word_embeds)
+	#if not np.array_equal(model.embed.weight.data.cpu().numpy(), old_word_embeds):
+	#	print("Weights updated")
+	#else:
+	#	print("No update")
 
         losses.append(loss.data[0])
 
@@ -346,4 +356,3 @@ if __name__ == "__main__":
     command = ' '.join(['python'] + sys.argv)
     args.command = command
     main(args)
-
