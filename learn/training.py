@@ -29,7 +29,6 @@ import git
 
 def main(args):
     assert '-' not in args.criterion
-    print(args.annotation_type)
     start = time.time()
     args, model, optimizer, params, dicts = init(args)
     epochs_trained = train_epochs(args, model, optimizer, params, dicts)
