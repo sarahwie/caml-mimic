@@ -49,7 +49,8 @@ def init(args):
     print("loading lookups...")
     dicts = datasets.load_lookups(args, desc_embed=desc_embed) #also creating a concept index here
 
-    model = tools.pick_model(args, dicts)
+    META_TEST = args.test_model is not None
+    model = tools.pick_model(args, dicts, META_TEST)
     print(model)
 
     if not args.test_model:
@@ -122,10 +123,11 @@ def train_epochs(args, model, optimizer, params, dicts):
 
 def early_stop(metrics_hist, criterion, patience):
     if not np.all(np.isnan(metrics_hist[criterion])):
-        if criterion == 'loss_dev': 
-            return np.nanargmin(metrics_hist[criterion]) > len(metrics_hist[criterion]) - patience
-        else:
-            return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
+        if len(metrics_hist[criterion]) >= patience: #only evaluate if have trained for \geq the patience amt of epochs*
+            if criterion == 'loss_dev': 
+                return np.nanargmin(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
+            else:
+                return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
     else:
         #keep training if criterion results have all been nan so far
         return False

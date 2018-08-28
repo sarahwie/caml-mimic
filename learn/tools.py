@@ -77,7 +77,7 @@ def pick_model(args, dicts, META_TEST):
 
         #if reloading a model**
         repo = git.Repo(search_parent_directories=True)
-        head, _ = os.path.split(args.test_model)
+        head, _ = os.path.split(args.reload_model)
         with open(os.path.join(head, 'git_info.txt'), 'r') as f:
             assert f.readline().split()[1] == repo.active_branch.name #first line: branchname
             assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
