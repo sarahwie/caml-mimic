@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.init import xavier_uniform
+from torch.nn.init import xavier_uniform_
 from torch.autograd import Variable
 
 import numpy as np
@@ -96,15 +96,15 @@ class ConvAttnPool(BaseModel):
 
         #initialize conv layer as in 2.1
         self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=int(floor(kernel_size/2)))
-        xavier_uniform(self.conv.weight)
+        xavier_uniform_(self.conv.weight)
 
         #context vectors for computing attention as in 2.2
         self.U = nn.Linear(num_filter_maps, Y)
-        xavier_uniform(self.U.weight)
+        xavier_uniform_(self.U.weight)
 
         #final layer: create a matrix to use for the L binary classifiers as in 2.3
         self.final = nn.Linear(num_filter_maps, Y)
-        xavier_uniform(self.final.weight)
+        xavier_uniform_(self.final.weight)
         
         #conv for label descriptions as in 2.5
         #description module has its own embedding and convolution layers
@@ -114,10 +114,10 @@ class ConvAttnPool(BaseModel):
             self.desc_embedding.weight.data = W.clone()
 
             self.label_conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size, padding=int(floor(kernel_size/2)))
-            xavier_uniform(self.label_conv.weight)
+            xavier_uniform_(self.label_conv.weight)
 
             self.label_fc1 = nn.Linear(num_filter_maps, num_filter_maps)
-            xavier_uniform(self.label_fc1.weight)
+            xavier_uniform_(self.label_fc1.weight)
         
     def forward(self, x, target, desc_data=None, get_attention=True):
         #get embeddings and apply dropout
@@ -154,11 +154,11 @@ class VanillaConv(BaseModel):
         super(VanillaConv, self).__init__(Y, embed_file, dicts, dropout=dropout, embed_size=embed_size) 
         #initialize conv layer as in 2.1
         self.conv = nn.Conv1d(self.embed_size, num_filter_maps, kernel_size=kernel_size)
-        xavier_uniform(self.conv.weight)
+        xavier_uniform_(self.conv.weight)
 
         #linear output
         self.fc = nn.Linear(num_filter_maps, Y)
-        xavier_uniform(self.fc.weight)
+        xavier_uniform_(self.fc.weight)
 
     def forward(self, x, target, desc_data=None, get_attention=False):
         #embed

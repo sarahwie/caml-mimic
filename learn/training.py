@@ -3,7 +3,7 @@
 """
 import torch
 import torch.optim as optim
-from torch.autograd import Variable
+from torch.autograd import Variable, set_grad_enabled
 import sys
 sys.path.append('..')
 import csv
@@ -117,7 +117,8 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
         Wrapper to do a training epoch and test on dev
     """
     if not testing:
-        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet)
+        set_grad_enabled(True)
+	losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -197,7 +198,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
         loss.backward()
         optimizer.step()
 
-        losses.append(loss.data[0])
+        losses.append(loss.item())
 
         if not quiet and batch_idx % print_every == 0:
             #print the average loss of the last 10 batches
@@ -243,7 +244,8 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
     gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, target, hadm_ids, _, descs = tup
-        data, target = Variable(torch.LongTensor(data), volatile=True), Variable(torch.FloatTensor(target))
+        set_grad_enabled(False)
+        data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
         if gpu:
             data = data.cuda()
             target = target.cuda()
@@ -260,7 +262,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
         output = torch.sigmoid(output)
         output = output.data.cpu().numpy()
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         target_data = target.data.cpu().numpy()
         if get_attn and samples:
             interpret.save_samples(data, output, target_data, alpha, window_size, epoch, tp_file, fp_file, dicts=dicts)
