@@ -64,7 +64,7 @@ class BaseModel(nn.Module):
                 d = self.desc_embedding(lt)
                 d = d.transpose(1,2)
                 d = self.label_conv(d)
-                d = F.max_pool1d(F.tanh(d), kernel_size=d.size()[2])
+                d = F.max_pool1d(torch.tanh(d), kernel_size=d.size()[2])
                 d = d.squeeze(2)
                 b_inst = self.label_fc1(d)
                 b_batch.append(b_inst)
@@ -126,7 +126,7 @@ class ConvAttnPool(BaseModel):
         x = x.transpose(1, 2)
 
         #apply convolution and nonlinearity (tanh)
-        x = F.tanh(self.conv(x).transpose(1,2))
+        x = torch.tanh(self.conv(x).transpose(1,2))
         #apply attention
         alpha = F.softmax(self.U.weight.matmul(x.transpose(1,2)), dim=2)
         #document representations are weighted sums using the attention. Can compute all at once as a matmul
@@ -170,10 +170,10 @@ class VanillaConv(BaseModel):
         c = self.conv(x)
         if get_attention:
             #get argmax vector too
-            x, argmax = F.max_pool1d(F.tanh(c), kernel_size=c.size()[2], return_indices=True)
+            x, argmax = F.max_pool1d(torch.tanh(c), kernel_size=c.size()[2], return_indices=True)
             attn = self.construct_attention(argmax, c.size()[2])
         else:
-            x = F.max_pool1d(F.tanh(c), kernel_size=c.size()[2])
+            x = F.max_pool1d(torch.tanh(c), kernel_size=c.size()[2])
             attn = None
         x = x.squeeze(dim=2)
 
