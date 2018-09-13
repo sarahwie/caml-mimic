@@ -67,7 +67,7 @@ class BaseModel(nn.Module):
                 d = self.desc_embedding(lt)
                 d = d.transpose(1,2)
                 d = self.label_conv(d)
-                d = F.max_pool1d(F.tanh(d), kernel_size=d.size()[2])
+                d = F.max_pool1d(torch.tanh(d), kernel_size=d.size()[2])
                 d = d.squeeze(2)
                 b_inst = self.label_fc1(d)
                 b_batch.append(b_inst)
@@ -131,7 +131,7 @@ class ConvAttnPool(BaseModel):
         x = x.transpose(1, 2)
 
         #apply convolution and nonlinearity (tanh)
-        x = F.tanh(self.conv(x).transpose(1,2))
+        x = torch.tanh(self.conv(x).transpose(1,2))
         #apply attention
         alpha = F.softmax(self.U.weight.matmul(x.transpose(1,2)), dim=2)
         #document representations are weighted sums using the attention. Can compute all at once as a matmul
@@ -148,7 +148,7 @@ class ConvAttnPool(BaseModel):
             diffs = None
             
         #final sigmoid to get predictions
-        yhat = F.sigmoid(y)
+        yhat = torch.sigmoid(y)
         loss = self._get_loss(yhat, target, diffs)
         return yhat, loss, alpha
 
@@ -174,10 +174,10 @@ class VanillaConv(BaseModel):
         c = self.conv(x)
         if get_attention:
             #get argmax vector too
-            x, argmax = F.max_pool1d(F.tanh(c), kernel_size=c.size()[2], return_indices=True)
+            x, argmax = F.max_pool1d(torch.tanh(c), kernel_size=c.size()[2], return_indices=True)
             attn = self.construct_attention(argmax, c.size()[2])
         else:
-            x = F.max_pool1d(F.tanh(c), kernel_size=c.size()[2])
+            x = F.max_pool1d(torch.tanh(c), kernel_size=c.size()[2])
             attn = None
         x = x.squeeze(dim=2)
 
@@ -185,7 +185,7 @@ class VanillaConv(BaseModel):
         x = self.fc(x)
 
         #final sigmoid to get predictions
-        yhat = F.sigmoid(x)
+        yhat = torch.sigmoid(x)
         loss = self._get_loss(yhat, target)
         return yhat, loss, attn
 
@@ -251,7 +251,7 @@ class VanillaRNN(BaseModel):
         last_hidden = self.hidden[0] if self.cell_type == 'lstm' else self.hidden
         last_hidden = last_hidden[-1] if self.num_directions == 1 else last_hidden[-2:].transpose(0,1).contiguous().view(self.batch_size, -1)
         #apply linear layer and sigmoid to get predictions
-        yhat = F.sigmoid(self.final(last_hidden))
+        yhat = torch.sigmoid(self.final(last_hidden))
         loss = self._get_loss(yhat, target)
         return yhat, loss, None
 
