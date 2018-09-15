@@ -110,7 +110,9 @@ def train_epochs(args, model, optimizer, params, dicts):
                 #stop training, do tests on test and train sets, and then stop the script
                 print("%s hasn't improved in %d epochs, early stopping..." % (args.criterion, args.patience))
                 test_only = True
-                args.test_model = '%s/model_best_%s.pth' % (model_dir, args.criterion)
+                test_m = [o for o in os.listdir(model_dir) if 'model_best' in o]
+                assert(len(test_m) == 1)
+                args.test_model = os.path.join(model_dir, test_m[0])
                 model = tools.pick_model(args, dicts, META_TEST)
     return epoch+1
 

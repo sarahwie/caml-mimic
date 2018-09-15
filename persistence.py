@@ -71,6 +71,7 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
 
         #save the model with the best criterion metric
         if not np.all(np.isnan(metrics_hist_all[0][criterion])):
+            
             if criterion == 'loss_dev': 
                 eval_val = np.nanargmin(metrics_hist_all[0][criterion])
             else:
@@ -81,10 +82,7 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
 		#save state dict
                 sd = model.cpu().state_dict()
 
-                if args.model == 'conv_attn_plus_GRAM':
-                    assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
-
-                torch.save(sd, model_dir + "/model_best_%s.pth" % criterion)
+                torch.save(sd, model_dir + "/model_best_%s_epoch_%d.pth" % (criterion, len(metrics_hist_all[0][criterion]) - 1))
                 if args.gpu:
                     model.cuda()
         print("saved metrics, params, model to directory %s\n" % (model_dir))
