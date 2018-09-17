@@ -3,6 +3,7 @@
 """
 import csv
 import json
+import os
 
 import numpy as np
 import torch
@@ -82,6 +83,12 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
 		#save state dict
                 sd = model.cpu().state_dict()
 
+                filename = [o for o in os.listdir(model_dir) if 'model_best' in o]
+                if len(filename) != 0:  #delete old models
+                    assert len(filename) == 1
+                    os.remove(os.path.join(model_dir, filename[0])) 
+
+                #save new model
                 torch.save(sd, model_dir + "/model_best_%s_epoch_%d.pth" % (criterion, len(metrics_hist_all[0][criterion]) - 1))
                 if args.gpu:
                     model.cuda()
