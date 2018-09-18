@@ -18,6 +18,8 @@ from tqdm import tqdm
 from collections import defaultdict
 
 from constants import *
+print(MODEL_DIR)
+print(DATA_DIR)
 import datasets
 import evaluation
 import interpret
@@ -135,7 +137,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
     """
     if not testing:
         set_grad_enabled(True)
-	losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet)
+        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -202,7 +204,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
 
-	old_word_embeds = model.embed.weight.data.cpu().numpy()
+        old_word_embeds = model.embed.weight.data.cpu().numpy()
 
         data, target, _, code_set, descs = tup
         data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
@@ -222,11 +224,11 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
         loss.backward()
         optimizer.step()
 
-	assert not np.array_equal(model.embed.weight.data.cpu().numpy(), old_word_embeds)
-	#if not np.array_equal(model.embed.weight.data.cpu().numpy(), old_word_embeds):
-	#	print("Weights updated")
-	#else:
-	#	print("No update")
+        assert not np.array_equal(model.embed.weight.data.cpu().numpy(), old_word_embeds)
+        #if not np.array_equal(model.embed.weight.data.cpu().numpy(), old_word_embeds):
+        #	print("Weights updated")
+        #else:
+        #	print("No update")
 
         losses.append(loss.item())
 
