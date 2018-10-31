@@ -88,9 +88,8 @@ def train_epochs(args, model, optimizer, params, dicts):
 
         elif args.test_model:
             model_dir = os.path.dirname(os.path.abspath(args.test_model))
-        metrics_all = one_epoch(model, optimizer, args.Y, epoch, args.n_epochs, args.batch_size, args.data_path,
-                                                  args.version, test_only, dicts, model_dir, 
-                                                  args.samples, args.gpu, args.quiet, META_TEST)
+
+        metrics_all = one_epoch(args, model, optimizer, epoch, test_only, dicts, model_dir, META_TEST)
         for name in metrics_all[0].keys():
             metrics_hist[name].append(metrics_all[0][name])
         for name in metrics_all[1].keys():
@@ -101,7 +100,7 @@ def train_epochs(args, model, optimizer, params, dicts):
 
         #save metrics, model, params
         assert '-' not in args.criterion
-        persistence.save_everything(args, metrics_hist_all, model, model_dir, params, args.criterion, evaluate)
+        persistence.save_everything(args, metrics_hist_all, model, model_dir, params, evaluate)
 
         if test_only:
             #we're done
@@ -129,15 +128,15 @@ def early_stop(metrics_hist, criterion, patience):
         #keep training if criterion results have all been nan so far
         return False
         
-def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, version, testing, dicts, model_dir, 
-              samples, gpu, quiet, META_TEST):
 
+def one_epoch(args, model, optimizer, epoch, testing, dicts, model_dir, META_TEST):
     """
         Wrapper to do a training epoch and test on dev
     """
+
     if not testing:
         set_grad_enabled(True)
-        losses, unseen_code_inds = train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet)
+        losses, unseen_code_inds = train(args, model, optimizer, epoch, dicts)
         loss = np.mean(losses)
         print("epoch loss: " + str(loss))
     else:
@@ -148,7 +147,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
             c2ind = dicts['c2ind']
             unseen_code_inds = set(dicts['ind2c'].keys())
             num_labels = len(dicts['ind2c'])
-            with open(data_path, 'r') as f:
+            with open(args.data_path, 'r') as f:
                 r = csv.reader(f)
                 #header
                 next(r)
@@ -158,22 +157,21 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
         else:
             unseen_code_inds = set()
 
-    fold = 'test' if version == 'mimic2' else 'dev'
-    if epoch == n_epochs - 1:
+    fold = 'test' if args.version == 'mimic2' else 'dev'
+    if epoch == args.n_epochs - 1:
         print("last epoch: testing on test and train sets")
         testing = True
-        quiet = False
 
     if not META_TEST:
         #test on dev
-        metrics = test(model, Y, epoch, data_path, fold, gpu, version, unseen_code_inds, dicts, samples, model_dir,
+        metrics = test(args, model, epoch, fold, unseen_code_inds, dicts, model_dir,
                    testing)
     else:
         metrics = defaultdict(float)
 
-    if testing or epoch == n_epochs - 1:
+    if testing or epoch == args.n_epochs - 1:
         print("\nevaluating on test")
-        metrics_te = test(model, Y, epoch, data_path, "test", gpu, version, unseen_code_inds, dicts, samples, 
+        metrics_te = test(args, model, epoch, "test", unseen_code_inds, dicts, 
                           model_dir, True)
     else:
         metrics_te = defaultdict(float)
@@ -184,7 +182,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
     return metrics_all
 
 
-def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts, quiet):
+def train(args, model, optimizer, epoch, dicts):
     """
         Training loop.
         output: losses for each example for this iteration
@@ -201,7 +199,8 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
     desc_embed = model.lmbda > 0
 
     model.train()
-    gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
+    gen = datasets.data_generator(args.data_path, dicts, args.batch_size, num_labels, desc_embed=desc_embed, version=args.version)
+
     for batch_idx, tup in tqdm(enumerate(gen)):
 
         old_word_embeds = model.embed.weight.data.cpu().numpy()
@@ -209,7 +208,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
         data, target, _, code_set, descs = tup
         data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
         unseen_code_inds = unseen_code_inds.difference(code_set)
-        if gpu:
+        if args.gpu:
             data = data.cuda()
             target = target.cuda()
         optimizer.zero_grad()
@@ -232,7 +231,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
 
         losses.append(loss.item())
 
-        if not quiet and batch_idx % print_every == 0:
+        if not args.quiet and batch_idx % print_every == 0:
             #print the average loss of the last 10 batches
             print("Train epoch: {} [batch #{}, batch_size {}, seq length {}]\tLoss: {:.6f}".format(
                 epoch, batch_idx, data.size()[0], data.size()[1], np.mean(losses[-10:])))
@@ -250,17 +249,18 @@ def unseen_code_vecs(model, code_inds, dicts, gpu):
     model.final.weight.data[code_inds, :] = desc_embeddings.data
     model.final.bias.data[code_inds] = 0
 
-def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, samples, model_dir, testing):
+
+def test(args, model, epoch, fold, code_inds, dicts, model_dir, testing):
     """
         Testing loop.
         Returns metrics
     """
-    filename = data_path.replace('train', fold)
+    filename = args.data_path.replace('train', fold) 
     print('file for evaluation: %s' % filename)
     num_labels = len(dicts['ind2c'])
 
     #initialize stuff for saving attention samples
-    if samples:
+    if args.samples:
         tp_file = open('%s/tp_%s_examples_%d.txt' % (model_dir, fold, epoch), 'w')
         fp_file = open('%s/fp_%s_examples_%d.txt' % (model_dir, fold, epoch), 'w')
         window_size = model.conv.weight.data.size()[2]
@@ -270,15 +270,16 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
 
     desc_embed = model.lmbda > 0
     if desc_embed and len(code_inds) > 0:
-        unseen_code_vecs(model, code_inds, dicts, gpu)
+        unseen_code_vecs(model, code_inds, dicts, args.gpu)
 
     model.eval()
-    gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed)
+    gen = datasets.data_generator(filename, dicts, 1, num_labels, desc_embed=desc_embed, version=args.version)
+
     for batch_idx, tup in tqdm(enumerate(gen)):
         data, target, hadm_ids, _, descs = tup
         set_grad_enabled(False)
         data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
-        if gpu:
+        if args.gpu:
             data = data.cuda()
             target = target.cuda()
         model.zero_grad()
@@ -289,13 +290,13 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
             desc_data = None
 
         #get an attention sample for 2% of batches
-        get_attn = samples and (np.random.rand() < 0.02 or (fold == 'test' and testing))
+        get_attn = args.samples and (np.random.rand() < 0.02 or (fold == 'test' and testing))
         output, loss, alpha = model(data, target, desc_data=desc_data, get_attention=get_attn)
 
         output = output.data.cpu().numpy()
         losses.append(loss.item())
         target_data = target.data.cpu().numpy()
-        if get_attn and samples:
+        if get_attn and args.samples:
             interpret.save_samples(data, output, target_data, alpha, window_size, epoch, tp_file, fp_file, dicts=dicts)
 
         #save predictions, target, hadm ids
@@ -306,7 +307,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         hids.extend(hadm_ids)
 
     #close files if needed
-    if samples:
+    if args.samples:
         tp_file.close()
         fp_file.close()
 

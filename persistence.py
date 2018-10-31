@@ -61,7 +61,7 @@ def write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw=None):
             json.dump(scores, f, indent=1)
     return preds_file
 
-def save_everything(args, metrics_hist_all, model, model_dir, params, criterion, evaluate=False):
+def save_everything(args, metrics_hist_all, model, model_dir, params, evaluate=False):
     """
         Save metrics, model, params all in model_dir
     """
@@ -71,16 +71,14 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
         save_params_dict(params)
 
         #save the model with the best criterion metric
-        if not np.all(np.isnan(metrics_hist_all[0][criterion])):
+        if not np.all(np.isnan(metrics_hist_all[0][args.criterion])):
             
-            if criterion == 'loss_dev': 
-                eval_val = np.nanargmin(metrics_hist_all[0][criterion])
+            if args.criterion == 'loss_dev': 
+                eval_val = np.nanargmin(metrics_hist_all[0][args.criterion])
             else:
-                eval_val = np.nanargmax(metrics_hist_all[0][criterion])
+                eval_val = np.nanargmax(metrics_hist_all[0][args.criterion])
 
-            if eval_val == len(metrics_hist_all[0][criterion]) - 1:                
-
-		#save state dict
+            if eval_val == len(metrics_hist_all[0][args.criterion]) - 1:
                 sd = model.cpu().state_dict()
 
                 filename = [o for o in os.listdir(model_dir) if 'model_best' in o]
@@ -89,7 +87,7 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, criterion,
                     os.remove(os.path.join(model_dir, filename[0])) 
 
                 #save new model
-                torch.save(sd, model_dir + "/model_best_%s_epoch_%d.pth" % (criterion, len(metrics_hist_all[0][criterion]) - 1))
+                torch.save(sd, model_dir + "/model_best_%s_epoch_%d.pth" % (args.criterion, len(metrics_hist_all[0][args.criterion]) - 1))
                 if args.gpu:
                     model.cuda()
         print("saved metrics, params, model to directory %s\n" % (model_dir))
