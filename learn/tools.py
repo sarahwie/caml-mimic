@@ -93,7 +93,7 @@ def pick_model(args, dicts, META_TEST):
     else:
         optimizer = None
 
-    if args.reload_model: #reload state dict
+    if args.reload_model and not args.test_model: #reload state dict
         optimizer.load_state_dict(optim_sd)
 
     return model, epoch, optimizer

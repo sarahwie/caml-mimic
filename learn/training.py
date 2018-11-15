@@ -15,6 +15,7 @@ sys.path.append('..')
 import time
 from tqdm import tqdm
 from collections import defaultdict
+import json
 
 from constants import *
 print(MODEL_DIR)
@@ -25,7 +26,8 @@ import interpret
 import persistence
 import learn.models as models
 import learn.tools as tools
-
+from torch.nn import DataParallel
+import re
 import git
 
 def main(args):
@@ -66,6 +68,20 @@ def train_epochs(args, model, optimizer, params, dicts, start_epoch):
     metrics_hist = defaultdict(lambda: [])
     metrics_hist_te = defaultdict(lambda: [])
     metrics_hist_tr = defaultdict(lambda: [])
+
+    if args.reload_model: #get existing metrics up to model checkpoint:
+        with open(os.path.join(args.reload_model, 'metrics.json'), 'r') as f:
+            metrics_hist_all = json.load(f)
+
+        #this will be a little expensive-- iterate through and re-assign:
+        for el in metrics_hist_all:
+            if '_te' in el:
+                metrics_hist_te[re.sub('_te$', '', el)] = metrics_hist_all[el][:start_epoch]
+            elif '_tr' in el:
+                metrics_hist_tr[re.sub('_tr$', '', el)] = metrics_hist_all[el][:start_epoch]
+            else: #dev
+                metrics_hist[el] = metrics_hist_all[el][:start_epoch]
+
     META_TEST = args.test_model is not None
     test_only = args.test_model is not None
     evaluate = args.test_model is not None
@@ -94,6 +110,7 @@ def train_epochs(args, model, optimizer, params, dicts, start_epoch):
             metrics_hist_te[name].append(metrics_all[1][name])
         for name in metrics_all[2].keys():
             metrics_hist_tr[name].append(metrics_all[2][name])
+
         metrics_hist_all = (metrics_hist, metrics_hist_te, metrics_hist_tr)
 
         #save metrics, model, params
@@ -112,7 +129,8 @@ def train_epochs(args, model, optimizer, params, dicts, start_epoch):
                 test_m = [o for o in os.listdir(model_dir) if 'model_best' in o]
                 assert(len(test_m) == 1)
                 args.test_model = os.path.join(model_dir, test_m[0])
-                model = tools.pick_model(args, dicts, META_TEST)
+                model, _, _ = tools.pick_model(args, dicts, META_TEST)
+
     return epoch-start_epoch+1
 
 def early_stop(metrics_hist, criterion, patience):
