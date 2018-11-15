@@ -61,7 +61,7 @@ def write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw=None):
             json.dump(scores, f, indent=1)
     return preds_file
 
-def save_everything(args, metrics_hist_all, model, model_dir, params, evaluate=False):
+def save_everything(args, metrics_hist_all, model, model_dir, params, optimizer, evaluate=False):
     """
         Save metrics, model, params all in model_dir
     """
@@ -86,8 +86,16 @@ def save_everything(args, metrics_hist_all, model, model_dir, params, evaluate=F
                     assert len(filename) == 1
                     os.remove(os.path.join(model_dir, filename[0])) 
 
+                filename = [o for o in os.listdir(model_dir) if 'optim_best' in o]
+                if len(filename) != 0:  #delete old optimizers
+                    assert len(filename) == 1
+                    os.remove(os.path.join(model_dir, filename[0])) 
+
                 #save new model
                 torch.save(sd, model_dir + "/model_best_%s_epoch_%d.pth" % (args.criterion, len(metrics_hist_all[0][args.criterion]) - 1))
+                #save optimizer
+                torch.save(optimizer.state_dict(), model_dir + "/optim_best_%s_epoch_%d.pth" % (args.criterion, len(metrics_hist_all[0][args.criterion]) - 1))
+
                 if args.gpu:
                     model.cuda()
         print("saved metrics, params, model to directory %s\n" % (model_dir))

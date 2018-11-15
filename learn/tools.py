@@ -9,6 +9,7 @@ import pickle
 
 import torch
 from torch.autograd import Variable
+import torch.optim as optim
 
 from learn import models
 from constants import *
@@ -22,6 +23,8 @@ def pick_model(args, dicts, META_TEST):
     """
         Use args to initialize the appropriate model
     """
+    epoch = 0
+
     Y = len(dicts['ind2c'])
     if args.model == "rnn":
         model = models.VanillaRNN(Y, args.embed_file, dicts, args.rnn_dim, args.cell_type, args.rnn_layers, args.gpu, args.embed_size,
@@ -56,22 +59,44 @@ def pick_model(args, dicts, META_TEST):
 
         #if reloading a model**
         repo = git.Repo(search_parent_directories=True)
-        head, _ = os.path.split(args.reload_model)
-        with open(os.path.join(head, 'git_info.txt'), 'r') as f:
+        with open(os.path.join(args.reload_model, 'git_info.txt'), 'r') as f:
             assert f.readline().split()[1] == repo.active_branch.name #first line: branchname
             assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
 
-        sd = torch.load(args.reload_model)
+        #get model best and epoch #:
+        filename = [os.path.join(args.reload_model, o) for o in os.listdir(args.reload_model) if 'model_best' in o]
+        assert len(filename) == 1
+        filename = filename[0]
+        try:
+            epoch = int(os.path.split(filename)[1].split('.')[0].split('_')[-1]) + 1
+        except:
+            raise Exception("can't parse reload file (epoch)")
+
+        sd = torch.load(filename)
 
         if args.model == "conv_attn_plus_GRAM":
             assert list(sd.items())[1][1].size(0) == model.concept_embed.weight.size(0)
 
         model.load_state_dict(sd)
 
+        #get optimizer's state dict too
+        filename = [os.path.join(args.reload_model, o) for o in os.listdir(args.reload_model) if 'optim_best' in o]
+        assert len(filename) == 1
+        filename = filename[0]
+        optim_sd = torch.load(filename)
+
     if args.gpu:
         model.cuda()
 
-    return model
+    if not args.test_model:
+        optimizer = optim.Adam(model.parameters(), weight_decay=args.weight_decay, lr=args.lr)
+    else:
+        optimizer = None
+
+    if args.reload_model: #reload state dict
+        optimizer.load_state_dict(optim_sd)
+
+    return model, epoch, optimizer
 
 def make_param_dict(args):
     """

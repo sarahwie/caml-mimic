@@ -2,7 +2,6 @@
     Main training code. Loads data, builds the model, trains, tests, evaluates, writes outputs, etc.
 """
 import torch
-import torch.optim as optim
 from torch.autograd import Variable, set_grad_enabled
 
 import csv
@@ -32,9 +31,13 @@ import git
 def main(args):
     assert '-' not in args.criterion
     start = time.time()
-    args, model, optimizer, params, dicts = init(args)
-    epochs_trained = train_epochs(args, model, optimizer, params, dicts)
-    print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS (hours): %f" % (args.model, epochs_trained, ((time.time() - start)/60/60)))
+    args, model, optimizer, params, dicts, start_epoch = init(args)
+    epochs_trained = train_epochs(args, model, optimizer, params, dicts, start_epoch)
+    if args.reload_model:
+        print("TOTAL ELAPSED TIME FOR %s MODEL AND %d (ADDITIONAL) EPOCHS (hours): %f" % (args.model, epochs_trained, ((time.time() - start)/60/60)))
+        print("TOTAL EPOCHS:", args.n_epochs)
+    else:
+        print("TOTAL ELAPSED TIME FOR %s MODEL AND %d EPOCHS (hours): %f" % (args.model, epochs_trained, ((time.time() - start)/60/60)))
 
 def init(args):
     """
@@ -49,19 +52,14 @@ def init(args):
     dicts = datasets.load_lookups(args, desc_embed=desc_embed)
 
     META_TEST = args.test_model is not None
-    model = tools.pick_model(args, dicts, META_TEST)
+    model, start_epoch, optimizer = tools.pick_model(args, dicts, META_TEST)
     print(model)
-
-    if not args.test_model:
-        optimizer = optim.Adam(model.parameters(), weight_decay=args.weight_decay, lr=args.lr)
-    else:
-        optimizer = None
 
     params = tools.make_param_dict(args)
     
-    return args, model, optimizer, params, dicts
+    return args, model, optimizer, params, dicts, start_epoch
 
-def train_epochs(args, model, optimizer, params, dicts):
+def train_epochs(args, model, optimizer, params, dicts, start_epoch):
     """
         Main loop. does train and test
     """
@@ -72,9 +70,9 @@ def train_epochs(args, model, optimizer, params, dicts):
     test_only = args.test_model is not None
     evaluate = args.test_model is not None
     #train for n_epochs unless criterion metric does not improve for [patience] epochs
-    for epoch in range(args.n_epochs):
+    for epoch in range(start_epoch, args.n_epochs): #only train for _x_ more epochs from best-saved model*
         #only test on train/test set on very last epoch
-        if epoch == 0 and not args.test_model:
+        if epoch == start_epoch and not args.test_model:
             model_dir = os.path.join(MODEL_DIR, '_'.join([args.model, time.strftime('%b_%d_%H:%M', time.localtime())]))
             os.mkdir(model_dir)
 
@@ -100,7 +98,7 @@ def train_epochs(args, model, optimizer, params, dicts):
 
         #save metrics, model, params
         assert '-' not in args.criterion
-        persistence.save_everything(args, metrics_hist_all, model, model_dir, params, evaluate)
+        persistence.save_everything(args, metrics_hist_all, model, model_dir, params, optimizer, evaluate)
 
         if test_only:
             #we're done
@@ -115,7 +113,7 @@ def train_epochs(args, model, optimizer, params, dicts):
                 assert(len(test_m) == 1)
                 args.test_model = os.path.join(model_dir, test_m[0])
                 model = tools.pick_model(args, dicts, META_TEST)
-    return epoch+1
+    return epoch-start_epoch+1
 
 def early_stop(metrics_hist, criterion, patience):
     if not np.all(np.isnan(metrics_hist[criterion])):
