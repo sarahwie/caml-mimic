@@ -45,7 +45,8 @@ def pick_model(args, dicts, META_TEST):
             head, _ = os.path.split(args.test_model)
             with open(os.path.join(head, 'git_info.txt'), 'r') as f:
                 assert f.readline().split()[1] == repo.active_branch.name #first line: branchname
-                assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
+                if args.sha_hash is None:
+                    assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
         #but don't check if only loading a model during training deploy**
         
         sd = torch.load(args.test_model)
@@ -61,7 +62,8 @@ def pick_model(args, dicts, META_TEST):
         repo = git.Repo(search_parent_directories=True)
         with open(os.path.join(args.reload_model, 'git_info.txt'), 'r') as f:
             assert f.readline().split()[1] == repo.active_branch.name #first line: branchname
-            assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
+            if args.sha_hash is None:
+                assert f.readline().split()[1] == repo.head.object.hexsha #second line: SHA hash
 
         #get model best and epoch #:
         filename = [os.path.join(args.reload_model, o) for o in os.listdir(args.reload_model) if 'model_best' in o]

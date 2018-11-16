@@ -393,6 +393,7 @@ if __name__ == "__main__":
                         help="optional flag to save samples of good / bad predictions")
     parser.add_argument("--quiet", dest="quiet", action="store_const", required=False, const=True,
                         help="optional flag not to print so much during training")
+    parser.add_argument("--sha-hash", dest='sha_hash', action='store_const', required=False, const=True, help="if reloading or loading test model and SHA HASH of git branch has changed, pass this flag to allow for the assertion check to be ignored")
     args = parser.parse_args()
     command = ' '.join(['python'] + sys.argv)
     args.command = command
