@@ -257,6 +257,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         get_attn = samples and (np.random.rand() < 0.02 or (fold == 'test' and testing))
         output, loss, alpha = model(data, target, desc_data=desc_data, get_attention=get_attn)
 
+        output = torch.sigmoid(output)
         output = output.data.cpu().numpy()
         losses.append(loss.data[0])
         target_data = target.data.cpu().numpy()
