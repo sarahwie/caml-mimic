@@ -46,7 +46,7 @@ class BaseModel(nn.Module):
 
     def _get_loss(self, yhat, target, diffs=None):
         #calculate the BCE
-        loss = F.binary_cross_entropy(yhat, target)
+        loss = F.binary_cross_entropy_with_logits(yhat, target)
 
         #add description regularization loss if relevant
         if self.lmbda > 0 and diffs is not None:
@@ -148,9 +148,10 @@ class ConvAttnPool(BaseModel):
             diffs = None
             
         #final sigmoid to get predictions
-        yhat = torch.sigmoid(y)
+        yhat = y
         loss = self._get_loss(yhat, target, diffs)
         return yhat, loss, alpha
+
 
 class VanillaConv(BaseModel):
 
@@ -185,7 +186,7 @@ class VanillaConv(BaseModel):
         x = self.fc(x)
 
         #final sigmoid to get predictions
-        yhat = torch.sigmoid(x)
+        yhat = x
         loss = self._get_loss(yhat, target)
         return yhat, loss, attn
 
@@ -251,7 +252,7 @@ class VanillaRNN(BaseModel):
         last_hidden = self.hidden[0] if self.cell_type == 'lstm' else self.hidden
         last_hidden = last_hidden[-1] if self.num_directions == 1 else last_hidden[-2:].transpose(0,1).contiguous().view(self.batch_size, -1)
         #apply linear layer and sigmoid to get predictions
-        yhat = torch.sigmoid(self.final(last_hidden))
+        yhat = self.final(last_hidden)
         loss = self._get_loss(yhat, target)
         return yhat, loss, None
 

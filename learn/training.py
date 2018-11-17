@@ -309,6 +309,7 @@ def test(args, model, epoch, fold, code_inds, dicts, model_dir, testing):
         get_attn = args.samples and (np.random.rand() < 0.02 or (fold == 'test' and testing))
         output, loss, alpha = model(data, target, desc_data=desc_data, get_attention=get_attn)
 
+        output = torch.sigmoid(output)
         output = output.data.cpu().numpy()
         losses.append(loss.item())
         target_data = target.data.cpu().numpy()
