@@ -4,7 +4,8 @@
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
-
+import sys
+sys.path.append('..')
 import csv
 import argparse
 import os 
