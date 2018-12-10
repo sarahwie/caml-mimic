@@ -101,10 +101,11 @@ def train_epochs(args, model, optimizer, params, dicts):
 
 def early_stop(metrics_hist, criterion, patience):
     if not np.all(np.isnan(metrics_hist[criterion])):
-        if criterion == 'loss-dev': 
-            return np.nanargmin(metrics_hist[criterion]) > len(metrics_hist[criterion]) - patience
-        else:
-            return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
+        if len(metrics_hist[criterion]) >= patience:
+            if criterion == 'loss_dev': 
+                return np.nanargmin(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
+            else:
+                return np.nanargmax(metrics_hist[criterion]) < len(metrics_hist[criterion]) - patience
     else:
         #keep training if criterion results have all been nan so far
         return False
@@ -256,6 +257,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         get_attn = samples and (np.random.rand() < 0.02 or (fold == 'test' and testing))
         output, loss, alpha = model(data, target, desc_data=desc_data, get_attention=get_attn)
 
+        output = torch.sigmoid(output)
         output = output.data.cpu().numpy()
         losses.append(loss.data[0])
         target_data = target.data.cpu().numpy()
