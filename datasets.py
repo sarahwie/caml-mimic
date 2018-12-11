@@ -16,6 +16,7 @@ class Batch:
     def __init__(self, desc_embed):
         self.docs = []
         self.labels = []
+        self.full_labels = []
         self.hadm_ids = []
         self.code_set = set()
         self.length = 0
@@ -23,7 +24,7 @@ class Batch:
         self.desc_embed = desc_embed
         self.descs = []
 
-    def add_instance(self, row, ind2c, c2ind, w2ind, dv_dict, num_labels):
+    def add_instance(self, row, ind2c, c2ind, w2ind, dv_dict, num_labels, ind2c_full, c2ind_full):
         """
             Makes an instance to add to this batch from given row data, with a bunch of lookups
         """
@@ -33,18 +34,25 @@ class Batch:
         length = int(row[4])
         cur_code_set = set()
         labels_idx = np.zeros(num_labels)
+        labels_idx_full = np.zeros(len(ind2c_full))
         labelled = False
         desc_vecs = []
         #get codes as a multi-hot vector
         for l in row[3].split(';'):
-            if l in c2ind.keys():
-                code = int(c2ind[l])
-                labels_idx[code] = 1
-                cur_code_set.add(code)
-                labelled = True
+            if l != '':
+                if l in c2ind.keys():
+                    code = int(c2ind[l])
+                    labels_idx[code] = 1
+                    cur_code_set.add(code)
+                    labelled = True
+                #also add to entire labelset: every code should exist here
+                other_code = int(c2ind_full[l])
+                labels_idx_full[other_code] = 1
+
         if not labelled:
             return
         if self.desc_embed:
+            raise Exception("TODO")
             for code in cur_code_set:
                 l = ind2c[code]
                 if l in dv_dict.keys():
@@ -61,6 +69,7 @@ class Batch:
         #build instance
         self.docs.append(text)
         self.labels.append(labels_idx)
+        self.full_labels.append(labels_idx_full)
         self.hadm_ids.append(hadm_id)
         self.code_set = self.code_set.union(cur_code_set)
         if self.desc_embed:
@@ -78,7 +87,7 @@ class Batch:
         self.docs = padded_docs
 
     def to_ret(self):
-        return np.array(self.docs), np.array(self.labels), np.array(self.hadm_ids), self.code_set,\
+        return np.array(self.docs), np.array(self.labels), np.array(self.full_labels), np.array(self.hadm_ids), self.code_set,\
                np.array(self.descs)
 
 def pad_desc_vecs(desc_vecs):
@@ -103,7 +112,7 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
         Yields:
             np arrays with data for training loop.
     """
-    ind2w, w2ind, ind2c, c2ind, dv_dict = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv']
+    ind2w, w2ind, ind2c, c2ind, dv_dict, ind2c_full, c2ind_full = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind'], dicts['dv'], dicts['ind2c_full'], dicts['c2ind_full']
     with open(filename, 'r') as infile:
         r = csv.reader(infile)
         #header
@@ -116,7 +125,7 @@ def data_generator(filename, dicts, batch_size, num_labels, desc_embed=False, ve
                 yield cur_inst.to_ret()
                 #clear
                 cur_inst = Batch(desc_embed)
-            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels)
+            cur_inst.add_instance(row, ind2c, c2ind, w2ind, dv_dict, num_labels, ind2c_full, c2ind_full)
         cur_inst.pad_docs()
         yield cur_inst.to_ret()
 
@@ -147,9 +156,10 @@ def load_lookups(args, desc_embed=False):
     #get vocab lookups
     ind2w, w2ind = load_vocab_dict(args, args.vocab)
 
+    #TODO: UPDATE DESC_DICT AS WELL
     #get code and description lookups
     if args.Y == 'full':
-        ind2c, desc_dict = load_full_codes(args.data_path, version=args.version)
+        ind2c, desc_dict, ind2c_full = load_full_codes(args.data_path, version=args.version)
     else:
         codes = set()
         with open("%s/TOP_%s_CODES.csv" % (MIMIC_3_DIR, str(args.Y)), 'r') as labelfile:
@@ -159,6 +169,7 @@ def load_lookups(args, desc_embed=False):
         ind2c = {i:c for i,c in enumerate(sorted(codes))}
         desc_dict = load_code_descriptions()
     c2ind = {c:i for i,c in ind2c.items()}
+    c2ind_full = {c:i for i,c in ind2c_full.items()}
 
     #get description one-hot vector lookup
     if desc_embed:
@@ -166,7 +177,7 @@ def load_lookups(args, desc_embed=False):
     else:
         dv_dict = None
 
-    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict}
+    dicts = {'ind2w': ind2w, 'w2ind': w2ind, 'ind2c': ind2c, 'c2ind': c2ind, 'desc': desc_dict, 'dv': dv_dict, 'ind2c_full': ind2c_full, 'c2ind_full': c2ind_full}
     return dicts
 
 def load_full_codes(train_path, version='mimic3'):
@@ -193,16 +204,36 @@ def load_full_codes(train_path, version='mimic3'):
         ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes))})
     else:
         codes = set()
-        for split in ['train', 'dev', 'test']:
+        with open(train_path, 'r') as f:
+            lr = csv.reader(f)
+            next(lr)
+            for row in lr:
+                for code in row[3].split(';'):
+                    codes.add(code)
+        codes = set([c for c in codes if c != ''])
+        ind2c = {i:c for i,c in enumerate(sorted(codes))}
+
+        #add test and dev codes for final stats calculations
+        codes_test_dev = set()
+        for split in ['dev', 'test']:
             with open(train_path.replace('train', split), 'r') as f:
                 lr = csv.reader(f)
                 next(lr)
                 for row in lr:
                     for code in row[3].split(';'):
-                        codes.add(code)
-        codes = set([c for c in codes if c != ''])
-        ind2c = defaultdict(str, {i:c for i,c in enumerate(sorted(codes))})
-    return ind2c, desc_dict
+                        if code not in codes: #not already in train dictionary
+                            codes_test_dev.add(code)
+
+        codes_test_dev = set([c for c in codes_test_dev if c != ''])
+        ind2c_full = {i:c for i,c in enumerate(sorted(codes_test_dev), len(ind2c))} #such that keys don't clash
+
+        #add the original index in
+        for el in ind2c:
+            ind2c_full[el] = ind2c[el]
+
+    print("Train Codeset Length:", len(ind2c))
+    print("Full Codeset Length:", len(ind2c_full))
+    return ind2c, desc_dict, ind2c_full
 
 def reformat(code, is_diag):
     """
