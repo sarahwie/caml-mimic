@@ -15,7 +15,7 @@ from tqdm import tqdm
 from constants import *
 import datasets
 
-def all_metrics(yhat, y, k=8, yhat_raw=None, calc_auc=True):
+def all_metrics(yhat, y, y_full, k=8, yhat_raw=None, calc_auc=True):
     """
         Inputs:
             yhat: binary predictions matrix 
@@ -25,6 +25,12 @@ def all_metrics(yhat, y, k=8, yhat_raw=None, calc_auc=True):
         Outputs:
             dict holding relevant metrics
     """
+    #add on zeros for out-of-training-codespace predictions
+    placeholder_preds = np.zeros((y.shape[0], y_full.shape[1]-y.shape[1]))
+    yhat = np.concatenate((yhat, placeholder_preds), axis=1)
+    yhat_raw = np.concatenate((yhat_raw, placeholder_preds), axis=1)
+    y = y_full
+
     names = ["acc", "prec", "rec", "f1"]
 
     #macro
@@ -165,6 +171,7 @@ def micro_f1(yhatmic, ymic):
     else:
         f1 = 2*(prec*rec)/(prec+rec)
     return f1
+
 
 def auc_metrics(yhat_raw, y, ymic):
     if yhat_raw.shape[0] <= 1:

@@ -125,6 +125,7 @@ def one_epoch(model, optimizer, Y, epoch, n_epochs, batch_size, data_path, versi
         loss = np.nan
         if model.lmbda > 0:
             #still need to get unseen code inds
+            raise Exception("TODO: STILL HAVE TO UPDATE THIS PART**")
             print("getting set of codes not in training set")
             c2ind = dicts['c2ind']
             unseen_code_inds = set(dicts['ind2c'].keys())
@@ -180,7 +181,7 @@ def train(model, optimizer, Y, epoch, batch_size, data_path, gpu, version, dicts
     model.train()
     gen = datasets.data_generator(data_path, dicts, batch_size, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, target, _, code_set, descs = tup
+        data, target, _, _, code_set, descs = tup
         data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
         unseen_code_inds = unseen_code_inds.difference(code_set)
         if gpu:
@@ -233,7 +234,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         fp_file = open('%s/fp_%s_examples_%d.txt' % (model_dir, fold, epoch), 'w')
         window_size = model.conv.weight.data.size()[2]
 
-    y, yhat, yhat_raw, hids, losses = [], [], [], [], []
+    y, yhat, yhat_raw, y_full, hids, losses = [], [], [], [], [], []
     ind2w, w2ind, ind2c, c2ind = dicts['ind2w'], dicts['w2ind'], dicts['ind2c'], dicts['c2ind']
 
     desc_embed = model.lmbda > 0
@@ -243,7 +244,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
     model.eval()
     gen = datasets.data_generator(filename, dicts, 1, num_labels, version=version, desc_embed=desc_embed)
     for batch_idx, tup in tqdm(enumerate(gen)):
-        data, target, hadm_ids, _, descs = tup
+        data, target, full_target, hadm_ids, _, descs = tup
         set_grad_enabled(False)
         data, target = Variable(torch.LongTensor(data)), Variable(torch.FloatTensor(target))
         if gpu:
@@ -273,6 +274,7 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
         y.append(target_data)
         yhat.append(output)
         hids.extend(hadm_ids)
+        y_full.append(full_target) #this is ALL of the true labels which should have been assigned
 
     #close files if needed
     if samples:
@@ -282,12 +284,13 @@ def test(model, Y, epoch, data_path, fold, gpu, version, code_inds, dicts, sampl
     y = np.concatenate(y, axis=0)
     yhat = np.concatenate(yhat, axis=0)
     yhat_raw = np.concatenate(yhat_raw, axis=0)
+    y_full = np.concatenate(y_full, axis=0)
 
     #write the predictions
     preds_file = persistence.write_preds(yhat, model_dir, hids, fold, ind2c, yhat_raw)
     #get metrics
     k = 5 if num_labels == 50 else [8,15]
-    metrics = evaluation.all_metrics(yhat, y, k=k, yhat_raw=yhat_raw)
+    metrics = evaluation.all_metrics(yhat, y, y_full, k=k, yhat_raw=yhat_raw)
     evaluation.print_metrics(metrics)
     metrics['loss_%s' % fold] = np.mean(losses)
     return metrics
