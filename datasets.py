@@ -39,14 +39,15 @@ class Batch:
         desc_vecs = []
         #get codes as a multi-hot vector
         for l in row[3].split(';'):
-            if l in c2ind.keys():
-                code = int(c2ind[l])
-                labels_idx[code] = 1
-                cur_code_set.add(code)
-                labelled = True
-            #also add to entire labelset: every code should exist here
-            other_code = int(c2ind_full[l])
-            labels_idx_full[other_code] = 1
+            if l != '':
+                if l in c2ind.keys():
+                    code = int(c2ind[l])
+                    labels_idx[code] = 1
+                    cur_code_set.add(code)
+                    labelled = True
+                #also add to entire labelset: every code should exist here
+                other_code = int(c2ind_full[l])
+                labels_idx_full[other_code] = 1
 
         if not labelled:
             return
